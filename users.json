@@ -1,0 +1,57 @@
+{
+  "1615535454": {
+    "clicks": 26,
+    "base_click_power": 1,
+    "passive_income": 0,
+    "pets_inventory": {},
+    "equipped_pets": [],
+    "click_power": 1,
+    "passive_power": 0
+  },
+  "892531179": {
+    "clicks": 13123308,
+    "base_click_power": 25,
+    "passive_income": 19,
+    "pets_inventory": {
+      "Редкая Собака": {
+        "count": 1,
+        "data": {
+          "name": "Редкая Собака",
+          "emoji": "🐕",
+          "click_mult": 2.0,
+          "passive_mult": 1.5
+        }
+      },
+      "Обычная Кошка": {
+        "count": 2,
+        "data": {
+          "name": "Обычная Кошка",
+          "emoji": "🐱",
+          "click_mult": 1.5,
+          "passive_mult": 1.2
+        }
+      },
+      "Эпический Дракон": {
+        "count": 1,
+        "data": {
+          "name": "Эпический Дракон",
+          "emoji": "🐲",
+          "click_mult": 2.5,
+          "passive_mult": 2.0
+        }
+      }
+    },
+    "equipped_pets": [],
+    "click_power": 25,
+    "passive_power": 19
+  },
+  "759518686": {
+    "clicks": 1318,
+    "base_click_power": 16,
+    "passive_income": 8,
+    "pets_inventory": {},
+    "equipped_pets": [],
+    "click_power": 16,
+    "passive_power": 8
+  }
+}

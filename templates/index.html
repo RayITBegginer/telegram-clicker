@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Telegram Clicker</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 16px;
+            background-color: var(--tg-theme-bg-color, #fff);
+            color: var(--tg-theme-text-color, #000);
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .button {
+            width: 100%;
+            padding: 15px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 8px;
+            background-color: var(--tg-theme-button-color, #2481cc);
+            color: var(--tg-theme-button-text-color, #fff);
+            cursor: pointer;
+            font-size: 16px;
+            transition: transform 0.1s;
+        }
+
+        .button:active {
+            transform: scale(0.98);
+        }
+
+        .stats {
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .pets-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .pet-card {
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            padding: 10px;
+            border-radius: 8px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="stats">
+            <h2>Статистика</h2>
+            <p>Монеты: <span id="clicks">0</span></p>
+            <p>Сила клика: <span id="clickPower">1</span></p>
+            <p>Пассивный доход: <span id="passiveIncome">0</span>/сек</p>
+        </div>
+
+        <button id="clickButton" class="button">🖱️ Клик!</button>
+        <button id="upgradeClickButton" class="button">⚡ Улучшить клик</button>
+        <button id="upgradePassiveButton" class="button">💰 Улучшить пассивный доход</button>
+        <button id="openCaseButton" class="button">📦 Открыть кейс</button>
+
+        <div id="petsContainer" class="pets-grid"></div>
+    </div>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
+
+        const clickButton = document.getElementById('clickButton');
+        const upgradeClickButton = document.getElementById('upgradeClickButton');
+        const upgradePassiveButton = document.getElementById('upgradePassiveButton');
+        const openCaseButton = document.getElementById('openCaseButton');
+        const petsContainer = document.getElementById('petsContainer');
+
+        function updateUI(data) {
+            document.getElementById('clicks').textContent = Math.floor(data.clicks);
+            document.getElementById('clickPower').textContent = data.click_power;
+            document.getElementById('passiveIncome').textContent = data.passive_power;
+
+            // Обновляем отображение питомцев
+            petsContainer.innerHTML = '';
+            for (const [petName, pet] of Object.entries(data.pets_inventory)) {
+                const petCard = document.createElement('div');
+                petCard.className = 'pet-card';
+                
+                const isEquipped = data.equipped_pets.some(p => p.name === petName);
+                petCard.innerHTML = `
+                    <div>${pet.data.emoji}</div>
+                    <div>${pet.data.name}</div>
+                    <div>x${pet.count}</div>
+                    <button class="button" onclick="togglePet('${petName}')">
+                        ${isEquipped ? 'Снять' : 'Надеть'}
+                    </button>
+                `;
+                petsContainer.appendChild(petCard);
+            }
+        }
+
+        async function sendAction(action, extraData = {}) {
+            try {
+                const response = await fetch('/action', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        user_id: tg.initDataUnsafe.user.id,
+                        action: action,
+                        ...extraData
+                    })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    updateUI(result.data);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+
+        function togglePet(petName) {
+            sendAction('equip_pet', { pet_name: petName });
+        }
+
+        // Обработчики событий
+        clickButton.onclick = () => sendAction('click');
+        upgradeClickButton.onclick = () => sendAction('upgrade_click');
+        upgradePassiveButton.onclick = () => sendAction('upgrade_passive');
+        openCaseButton.onclick = () => sendAction('open_case');
+
+        // Инициализация
+        sendAction('get_data');
+    </script>
+</body>
+</html> 
