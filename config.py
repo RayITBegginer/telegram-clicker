@@ -1,34 +1,34 @@
-import random
-from dataclasses import dataclass
-from typing import List
+import os
+from dotenv import load_dotenv
 
-# Конфигурация бота
-TOKEN = '7512002879:AAETdulKoJHOolQSDLxiyxPT6oCDea2cFsQ'  # Ваш токен
+load_dotenv()
+
+# Токен бота
+BOT_TOKEN = os.getenv('BOT_TOKEN')
+
+# URL веб-приложения
+WEBAPP_URL = os.getenv('WEBAPP_URL')
+
+# Настройки базы данных
+DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///database.db')
 
 # Настройки игры
-PASSIVE_INCOME_INTERVAL = 1  # Изменили на 1 секунду
-CLICK_UPGRADE_COST_MULTIPLIER = 1.5  # Множитель стоимости улучшений клика
-PASSIVE_UPGRADE_COST_MULTIPLIER = 2.0  # Множитель стоимости пассивного дохода
-BASE_CLICK_UPGRADE_COST = 10  # Базовая стоимость улучшения клика
-BASE_PASSIVE_UPGRADE_COST = 50  # Базовая стоимость пассивного дохода
-CASE_COST = 150  # Стоимость кейса
+CLICK_POWER = 1
+PASSIVE_INCOME = 0
+BOX_COST = 500
 
-@dataclass
-class Pet:
-    name: str
-    emoji: str
-    click_multiplier: float
-    passive_multiplier: float
-    chance: float  # Шанс выпадения в процентах
+# Питомцы и их характеристики
+PETS = {
+    'cat': {'name': 'Кот', 'click_power': 2, 'passive_income': 1, 'rarity': 'common'},
+    'dog': {'name': 'Собака', 'click_power': 3, 'passive_income': 2, 'rarity': 'common'},
+    'dragon': {'name': 'Дракон', 'click_power': 5, 'passive_income': 3, 'rarity': 'rare'},
+    'unicorn': {'name': 'Единорог', 'click_power': 7, 'passive_income': 4, 'rarity': 'rare'},
+    'phoenix': {'name': 'Феникс', 'click_power': 10, 'passive_income': 5, 'rarity': 'epic'}
+}
 
-# Список доступных питомцев
-PETS = [
-    Pet("Обычная Кошка", "🐱", 1.5, 1.2, 40),
-    Pet("Редкая Собака", "🐕", 2.0, 1.5, 30),
-    Pet("Эпический Дракон", "🐲", 2.5, 2.0, 15),
-    Pet("Легендарная Феникс", "🦅", 3.0, 2.5, 10),
-    Pet("Мифический Единорог", "🦄", 4.0, 3.0, 5),
-]
-
-def get_random_pet() -> Pet:
-    return random.choices(PETS, weights=[pet.chance for pet in PETS], k=1)[0] 
+# Шансы выпадения питомцев из боксов
+BOX_CHANCES = {
+    'common': 0.7,
+    'rare': 0.25,
+    'epic': 0.05
+} 

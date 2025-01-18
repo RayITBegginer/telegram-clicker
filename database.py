@@ -1,87 +1,129 @@
 import json
-import os
-from typing import Dict, Any
-from config import Pet
+import random
+from config import PETS, BOX_CHANCES, BOX_COST
 
 class Database:
-    def __init__(self, filename: str = 'users.json'):
-        self.filename = filename
-        self.data = self._load_data()
+    def __init__(self):
+        try:
+            with open('users.json', 'r') as f:
+                self.users = json.load(f)
+        except FileNotFoundError:
+            self.users = {}
+            self.save()
 
-    def _load_data(self) -> Dict[str, Any]:
-        if os.path.exists(self.filename):
-            with open(self.filename, 'r', encoding='utf-8') as file:
-                return json.load(file)
-        return {}
+    def save(self):
+        with open('users.json', 'w') as f:
+            json.dump(self.users, f)
 
-    def _save_data(self) -> None:
-        with open(self.filename, 'w', encoding='utf-8') as file:
-            json.dump(self.data, file, indent=2, ensure_ascii=False)
-
-    def get_user(self, user_id: str) -> Dict[str, Any]:
-        if user_id not in self.data:
-            self.data[user_id] = {
-                "clicks": 0,
-                "base_click_power": 1,
-                "passive_income": 0,
-                "pets_inventory": {},
-                "equipped_pets": [],
-                "click_power": 1,
-                "passive_power": 0
+    def create_user(self, user_id):
+        if str(user_id) not in self.users:
+            self.users[str(user_id)] = {
+                'clicks': 0,
+                'click_power': 1,
+                'passive_income': 0,
+                'inventory': [],
+                'equipped_pets': []
             }
-            self._save_data()
-        return self.data[user_id]
+            self.save()
+        return self.users[str(user_id)]
 
-    def update_user(self, user_id: str, data: Dict[str, Any]) -> None:
-        self.data[user_id] = data
-        self._save_data()
+    def get_user_stats(self, user_id):
+        user = self.users.get(str(user_id))
+        if not user:
+            user = self.create_user(user_id)
+        
+        # Подсчет общей силы клика и пассивного дохода
+        total_click_power = user['click_power']
+        total_passive_income = user['passive_income']
+        
+        for pet_type in user['equipped_pets']:
+            total_click_power += PETS[pet_type]['click_power']
+            total_passive_income += PETS[pet_type]['passive_income']
+        
+        return {
+            'clicks': user['clicks'],
+            'click_power': total_click_power,
+            'passive_income': total_passive_income,
+            'inventory': user['inventory'],
+            'equipped_pets': user['equipped_pets']
+        }
 
-    def add_pet(self, user_id: str, pet: Pet) -> None:
-        user = self.get_user(user_id)
-        pet_key = f"{pet.name}"
+    def click(self, user_id):
+        user = self.users.get(str(user_id))
+        if not user:
+            user = self.create_user(user_id)
         
-        if pet_key in user['pets_inventory']:
-            user['pets_inventory'][pet_key]['count'] += 1
-        else:
-            user['pets_inventory'][pet_key] = {
-                'count': 1,
-                'data': {
-                    "name": pet.name,
-                    "emoji": pet.emoji,
-                    "click_mult": pet.click_multiplier,
-                    "passive_mult": pet.passive_multiplier
-                }
-            }
+        # Подсчет силы клика с учетом питомцев
+        click_power = user['click_power']
+        for pet_type in user['equipped_pets']:
+            click_power += PETS[pet_type]['click_power']
         
-        self.update_user(user_id, user)
+        user['clicks'] += click_power
+        self.save()
+        
+        return self.get_user_stats(user_id)
 
-    def equip_pet(self, user_id: str, pet_name: str) -> bool:
-        user = self.get_user(user_id)
+    def buy_box(self, user_id):
+        user = self.users.get(str(user_id))
+        if not user:
+            return None
         
-        if pet_name not in user['pets_inventory'] or user['pets_inventory'][pet_name]['count'] < 1:
+        if user['clicks'] < BOX_COST:
+            return None
+        
+        user['clicks'] -= BOX_COST
+        
+        # Определяем редкость питомца
+        rarity = random.choices(
+            list(BOX_CHANCES.keys()),
+            list(BOX_CHANCES.values())
+        )[0]
+        
+        # Выбираем случайного питомца этой редкости
+        possible_pets = [pet_type for pet_type, pet in PETS.items() if pet['rarity'] == rarity]
+        pet_type = random.choice(possible_pets)
+        
+        # Добавляем питомца в инвентарь
+        user['inventory'].append(pet_type)
+        self.save()
+        
+        return {
+            'pet_type': pet_type,
+            'pet_info': PETS[pet_type],
+            'user_stats': self.get_user_stats(user_id)
+        }
+
+    def equip_pet(self, user_id, pet_index):
+        user = self.users.get(str(user_id))
+        if not user:
             return False
         
-        if any(pet['name'] == pet_name for pet in user['equipped_pets']):
-            user['equipped_pets'] = [pet for pet in user['equipped_pets'] if pet['name'] != pet_name]
-        else:
-            if len(user['equipped_pets']) >= 2:
-                return False
-            user['equipped_pets'].append(user['pets_inventory'][pet_name]['data'])
+        try:
+            available_pets = list(set(user['inventory']))
+            pet_type = available_pets[pet_index]
+        except:
+            return False
         
-        self.recalculate_multipliers(user_id)
+        if len(user['equipped_pets']) >= 2:
+            return False
+        
+        if pet_type in user['equipped_pets']:
+            return False
+        
+        user['equipped_pets'].append(pet_type)
+        self.save()
         return True
 
-    def recalculate_multipliers(self, user_id: str) -> None:
-        user = self.get_user(user_id)
+    def unequip_pet(self, user_id, pet_index):
+        user = self.users.get(str(user_id))
+        if not user:
+            return False
         
-        total_click_mult = 0
-        total_passive_mult = 0
+        try:
+            pet_type = user['equipped_pets'][pet_index]
+        except:
+            return False
         
-        for pet in user['equipped_pets']:
-            total_click_mult += pet['click_mult'] - 1
-            total_passive_mult += pet['passive_mult'] - 1
-        
-        user['click_power'] = user['base_click_power'] * (1 + total_click_mult)
-        user['passive_power'] = user['passive_income'] * (1 + total_passive_mult)
-        
-        self.update_user(user_id, user) 
+        user['equipped_pets'].remove(pet_type)
+        self.save()
+        return True 

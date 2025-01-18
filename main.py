@@ -1,146 +1,234 @@
 import asyncio
-import logging
+import json
+import random
 from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
-from config import *
-from database import Database
-from keyboards import get_main_keyboard, get_pets_keyboard
+import os
+from dotenv import load_dotenv
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+load_dotenv()
 
-bot = Bot(token=TOKEN)
+bot = Bot(token=os.getenv('BOT_TOKEN'))
 dp = Dispatcher()
-db = Database()
+
+# Загрузка данных пользователей
+try:
+    with open('users.json', 'r') as f:
+        users = json.load(f)
+except FileNotFoundError:
+    users = {}
+
+# Питомцы и их характеристики
+pets = {
+    'cat': {'name': 'Кот', 'click_power': 2, 'passive_income': 1, 'rarity': 'common'},
+    'dog': {'name': 'Собака', 'click_power': 3, 'passive_income': 2, 'rarity': 'common'},
+    'dragon': {'name': 'Дракон', 'click_power': 5, 'passive_income': 3, 'rarity': 'rare'},
+    'unicorn': {'name': 'Единорог', 'click_power': 7, 'passive_income': 4, 'rarity': 'rare'},
+    'phoenix': {'name': 'Феникс', 'click_power': 10, 'passive_income': 5, 'rarity': 'epic'}
+}
+
+# Шансы выпадения питомцев из боксов
+box_chances = {
+    'common': 0.7,
+    'rare': 0.25,
+    'epic': 0.05
+}
+
+# Стоимость бокса
+BOX_COST = 500
+
+def save_users():
+    with open('users.json', 'w') as f:
+        json.dump(users, f)
+
+def create_user(user_id):
+    if str(user_id) not in users:
+        users[str(user_id)] = {
+            'clicks': 0,
+            'click_power': 1,
+            'passive_income': 0,
+            'inventory': [],  # Инвентарь питомцев
+            'equipped_pets': []  # Экипированные питомцы (максимум 2)
+        }
+        save_users()
 
 @dp.message(Command('start'))
 async def cmd_start(message: types.Message):
-    user_id = str(message.from_user.id)
-    user_data = db.get_user(user_id)
+    user_id = message.from_user.id
+    create_user(user_id)
     await message.answer(
-        'Добро пожаловать в игру! Кликайте, чтобы заработать монеты.',
-        reply_markup=get_main_keyboard(user_data)
+        "Привет! Я бот-кликер.\n"
+        "Используй команды:\n"
+        "/click - кликнуть\n"
+        "/stats - статистика\n"
+        "/inventory - инвентарь питомцев\n"
+        "/box - открыть бокс (500 кликов)\n"
+        "/equip - экипировать питомца\n"
+        "/unequip - снять питомца"
     )
 
-@dp.callback_query()
-async def process_callback(callback: types.CallbackQuery):
-    user_id = str(callback.from_user.id)
-    user_data = db.get_user(user_id)
+@dp.message(Command('click'))
+async def cmd_click(message: types.Message):
+    user_id = str(message.from_user.id)
+    create_user(user_id)
     
-    if callback.data == 'click':
-        user_data['clicks'] += user_data['click_power']
-        if user_data['clicks'] % 5 == 0:
-            db.update_user(user_id, user_data)
-        await callback.message.edit_reply_markup(reply_markup=get_main_keyboard(user_data))
+    # Базовые клики
+    click_power = users[user_id]['click_power']
     
-    elif callback.data == 'upgrade_click':
-        upgrade_cost = int(BASE_CLICK_UPGRADE_COST * (CLICK_UPGRADE_COST_MULTIPLIER ** (user_data['base_click_power'] - 1)))
-        if user_data['clicks'] >= upgrade_cost:
-            user_data['clicks'] -= upgrade_cost
-            user_data['base_click_power'] += 1
-            db.recalculate_multipliers(user_id)
-            user_data = db.get_user(user_id)
-            await callback.answer(f'Улучшение куплено! Новая базовая сила клика: {user_data["base_click_power"]}')
-        else:
-            await callback.answer(f'Недостаточно монет! Нужно: {upgrade_cost}', show_alert=True)
-        await callback.message.edit_reply_markup(reply_markup=get_main_keyboard(user_data))
+    # Бонус от экипированных питомцев
+    for pet_type in users[user_id]['equipped_pets']:
+        click_power += pets[pet_type]['click_power']
     
-    elif callback.data == 'upgrade_passive':
-        upgrade_cost = int(BASE_PASSIVE_UPGRADE_COST * (PASSIVE_UPGRADE_COST_MULTIPLIER ** user_data['passive_income']))
-        if user_data['clicks'] >= upgrade_cost:
-            user_data['clicks'] -= upgrade_cost
-            user_data['passive_income'] += 1
-            db.recalculate_multipliers(user_id)
-            user_data = db.get_user(user_id)
-            await callback.answer(f'Пассивный доход улучшен! Новое значение: {user_data["passive_income"]}')
-        else:
-            await callback.answer(f'Недостаточно монет! Нужно: {upgrade_cost}', show_alert=True)
-        await callback.message.edit_reply_markup(reply_markup=get_main_keyboard(user_data))
+    users[user_id]['clicks'] += click_power
+    save_users()
     
-    elif callback.data == 'open_case':
-        if user_data['clicks'] >= CASE_COST:
-            user_data['clicks'] -= CASE_COST
-            pet = get_random_pet()
-            db.add_pet(user_id, pet)
-            user_data = db.get_user(user_id)
-            await callback.answer(f'Вы получили питомца: {pet.name}!', show_alert=True)
-        else:
-            await callback.answer(f'Недостаточно монет! Нужно: {CASE_COST}', show_alert=True)
-        await callback.message.edit_reply_markup(reply_markup=get_main_keyboard(user_data))
-    
-    elif callback.data == 'pets':
-        equipped_count = len(user_data['equipped_pets'])
-        text = f'🐾 Ваши питомцы (Экипировано: {equipped_count}/2)\n'
-        text += f'Множитель клика: x{user_data["click_power"]/user_data["base_click_power"]:.1f}\n'
-        text += f'Множитель пассива: x{user_data["passive_power"]/max(1, user_data["passive_income"]):.1f}'
-        await callback.message.edit_text(text, reply_markup=get_pets_keyboard(user_data))
-    
-    elif callback.data.startswith('equip_'):
-        pet_name = callback.data[6:]
-        if db.equip_pet(user_id, pet_name):
-            await callback.answer('Питомец экипирован!')
-            user_data = db.get_user(user_id)
-            equipped_count = len(user_data['equipped_pets'])
-            text = f'🐾 Ваши питомцы (Экипировано: {equipped_count}/2)\n'
-            text += f'Множитель клика: x{user_data["click_power"]/user_data["base_click_power"]:.1f}\n'
-            text += f'Множитель пассива: x{user_data["passive_power"]/max(1, user_data["passive_income"]):.1f}'
-            await callback.message.edit_text(text, reply_markup=get_pets_keyboard(user_data))
-        else:
-            await callback.answer('Нельзя экипировать больше 2 питомцев!', show_alert=True)
-    
-    elif callback.data.startswith('unequip_'):
-        pet_name = callback.data[8:]
-        if db.equip_pet(user_id, pet_name):
-            await callback.answer('Питомец снят!')
-            user_data = db.get_user(user_id)
-            equipped_count = len(user_data['equipped_pets'])
-            text = f'🐾 Ваши питомцы (Экипировано: {equipped_count}/2)\n'
-            text += f'Множитель клика: x{user_data["click_power"]/user_data["base_click_power"]:.1f}\n'
-            text += f'Множитель пассива: x{user_data["passive_power"]/max(1, user_data["passive_income"]):.1f}'
-            await callback.message.edit_text(text, reply_markup=get_pets_keyboard(user_data))
-    
-    elif callback.data == 'back':
-        await callback.message.edit_text('Главное меню:', reply_markup=get_main_keyboard(user_data))
-    
-    await callback.answer()
+    await message.answer(f"Клик! +{click_power} кликов\nВсего: {users[user_id]['clicks']}")
 
-@dp.message(Command('play'))
-async def cmd_play(message: types.Message):
-    web_app_url = 'https://your-app-name.onrender.com'  # URL будет получен после деплоя
-    keyboard = types.InlineKeyboardMarkup(inline_keyboard=[[
-        types.InlineKeyboardButton(text="🎮 Играть", web_app=types.WebAppInfo(url=web_app_url))
-    ]])
-    await message.answer("Нажмите кнопку ниже, чтобы открыть игру:", reply_markup=keyboard)
+@dp.message(Command('stats'))
+async def cmd_stats(message: types.Message):
+    user_id = str(message.from_user.id)
+    create_user(user_id)
+    
+    stats = users[user_id]
+    
+    # Подсчет общей силы клика и пассивного дохода
+    total_click_power = stats['click_power']
+    total_passive_income = stats['passive_income']
+    
+    for pet_type in stats['equipped_pets']:
+        total_click_power += pets[pet_type]['click_power']
+        total_passive_income += pets[pet_type]['passive_income']
+    
+    # Формируем список экипированных питомцев
+    equipped_list = "\n".join([f"- {pets[pet]['name']}" for pet in stats['equipped_pets']]) or "Нет экипированных питомцев"
+    
+    await message.answer(
+        f"Ваша статистика:\n"
+        f"Клики: {stats['clicks']}\n"
+        f"Базовая сила клика: {stats['click_power']}\n"
+        f"Общая сила клика: {total_click_power}\n"
+        f"Общий пассивный доход: {total_passive_income}/сек\n"
+        f"\nЭкипированные питомцы:\n{equipped_list}"
+    )
 
-async def passive_income():
-    last_save = {}
-    while True:
-        try:
-            current_time = asyncio.get_event_loop().time()
-            for user_id, user_data in db.data.items():
-                if user_data['passive_power'] > 0:
-                    user_data['clicks'] += user_data['passive_power']
-                    if user_id not in last_save or current_time - last_save[user_id] >= 5:
-                        db.update_user(user_id, user_data)
-                        last_save[user_id] = current_time
-            await asyncio.sleep(PASSIVE_INCOME_INTERVAL)
-        except Exception as e:
-            logger.error(f"Ошибка в passive_income: {e}")
-            await asyncio.sleep(1)
+@dp.message(Command('inventory'))
+async def cmd_inventory(message: types.Message):
+    user_id = str(message.from_user.id)
+    create_user(user_id)
+    
+    if not users[user_id]['inventory']:
+        await message.answer("Ваш инвентарь пуст! Используйте /box чтобы получить питомцев.")
+        return
+    
+    # Считаем количество каждого питомца
+    pet_counts = {}
+    for pet_type in users[user_id]['inventory']:
+        pet_counts[pet_type] = pet_counts.get(pet_type, 0) + 1
+    
+    # Формируем список питомцев
+    inventory_list = []
+    for pet_type, count in pet_counts.items():
+        pet = pets[pet_type]
+        status = "🟢" if pet_type in users[user_id]['equipped_pets'] else "⚪"
+        inventory_list.append(
+            f"{status} {pet['name']} (x{count})\n"
+            f"└ Клик: +{pet['click_power']}, Пассив: +{pet['passive_income']}"
+        )
+    
+    await message.answer(
+        f"Ваш инвентарь питомцев:\n\n"
+        f"{chr(10).join(inventory_list)}\n\n"
+        f"Команды:\n"
+        f"/equip [номер] - экипировать питомца\n"
+        f"/unequip [номер] - снять питомца"
+    )
 
-async def main():
+@dp.message(Command('box'))
+async def cmd_box(message: types.Message):
+    user_id = str(message.from_user.id)
+    create_user(user_id)
+    
+    if users[user_id]['clicks'] < BOX_COST:
+        await message.answer(f"Недостаточно кликов! Нужно {BOX_COST}")
+        return
+    
+    users[user_id]['clicks'] -= BOX_COST
+    
+    # Определяем редкость питомца
+    rarity = random.choices(
+        list(box_chances.keys()),
+        list(box_chances.values())
+    )[0]
+    
+    # Выбираем случайного питомца этой редкости
+    possible_pets = [pet_type for pet_type, pet in pets.items() if pet['rarity'] == rarity]
+    pet_type = random.choice(possible_pets)
+    
+    # Добавляем питомца в инвентарь
+    users[user_id]['inventory'].append(pet_type)
+    save_users()
+    
+    await message.answer(
+        f"🎉 Вы получили питомца: {pets[pet_type]['name']}!\n"
+        f"Редкость: {rarity}\n"
+        f"Клик: +{pets[pet_type]['click_power']}\n"
+        f"Пассив: +{pets[pet_type]['passive_income']}\n\n"
+        f"Используйте /inventory чтобы увидеть всех питомцев"
+    )
+
+@dp.message(Command('equip'))
+async def cmd_equip(message: types.Message):
+    user_id = str(message.from_user.id)
+    create_user(user_id)
+    
     try:
-        logger.info("Бот запущен")
-        passive_income_task = asyncio.create_task(passive_income())
-        await dp.start_polling(bot)
-    except Exception as e:
-        logger.error(f"Произошла ошибка: {e}")
-    finally:
-        logger.info("Бот остановлен")
-        await bot.session.close()
+        pet_index = int(message.text.split()[1]) - 1
+        available_pets = list(set(users[user_id]['inventory']))
+        pet_type = available_pets[pet_index]
+    except:
+        await message.answer("Используйте: /equip [номер питомца из инвентаря]")
+        return
+    
+    if len(users[user_id]['equipped_pets']) >= 2:
+        await message.answer("Уже экипировано максимальное количество питомцев (2)!")
+        return
+    
+    if pet_type in users[user_id]['equipped_pets']:
+        await message.answer(f"{pets[pet_type]['name']} уже экипирован!")
+        return
+    
+    users[user_id]['equipped_pets'].append(pet_type)
+    save_users()
+    
+    await message.answer(f"Вы экипировали {pets[pet_type]['name']}!")
+
+@dp.message(Command('unequip'))
+async def cmd_unequip(message: types.Message):
+    user_id = str(message.from_user.id)
+    create_user(user_id)
+    
+    try:
+        pet_index = int(message.text.split()[1]) - 1
+        pet_type = users[user_id]['equipped_pets'][pet_index]
+    except:
+        await message.answer("Используйте: /unequip [номер экипированного питомца]")
+        return
+    
+    users[user_id]['equipped_pets'].remove(pet_type)
+    save_users()
+    
+    await message.answer(f"Вы сняли {pets[pet_type]['name']}!")
+
+# Пассивный доход
+async def passive_income():
+    while True:
+        for user_id in users:
+            passive = users[user_id]['passive_income']
+            for pet_type in users[user_id]['equipped_pets']:
+                passive += pets[pet_type]['passive_income']
+            users[user_id]['clicks'] += passive
+        save_users()
+        await asyncio.sleep(1)
 
 if __name__ == '__main__':
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        logger.info("Бот был остановлен вручную")
+    asyncio.run(dp.start_polling(bot))
