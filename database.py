@@ -106,6 +106,7 @@ class Database:
         return self.users[str_id]
 
     def click(self, user_id):
+        """Обработка клика"""
         user = self.get_user_stats(user_id)
         
         # Подсчет силы клика с учетом питомцев
@@ -114,9 +115,14 @@ class Database:
             if pet in PETS:
                 click_power += PETS[pet]['click_power']
         
+        # Начисляем клики
         user['clicks'] += click_power
         user['achievements']['clicks_made'] += 1
+        
+        # Сохраняем изменения
         self.save()
+        
+        # Возвращаем обновленные данные
         return user
 
     def buy_box(self, user_id):

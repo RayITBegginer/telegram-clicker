@@ -173,13 +173,33 @@
             }
         }
 
-        // Обновление статистики
+        // Обработка клика
+        let clickInProgress = false;
+        clickButton.addEventListener('click', async () => {
+            // Временно обновляем значение до ответа сервера
+            const currentClicks = parseInt(clicksElement.textContent);
+            const clickPower = parseInt(clickPowerElement.textContent);
+            clicksElement.textContent = currentClicks + clickPower;
+
+            try {
+                const data = await sendAction('click');
+                updateStats(data);
+            } catch (error) {
+                // Если ошибка, возвращаем старое значение
+                clicksElement.textContent = currentClicks;
+                console.error('Error clicking:', error);
+            }
+        });
+
+        // Функция обновления статистики
         function updateStats(data) {
+            if (!data) return;
+            
             clicksElement.textContent = data.clicks;
             clickPowerElement.textContent = data.click_power;
             passiveIncomeElement.textContent = data.passive_income;
             
-            // Обновляем цены апгрейдов (множитель 1.5)
+            // Обновляем цены апгрейдов
             document.getElementById('click-cost').textContent = 
                 Math.floor(50 * Math.pow(1.5, data.click_power - 1));
             document.getElementById('passive-cost').textContent = 
@@ -187,20 +207,22 @@
             
             // Обновляем инвентарь
             const petsGrid = document.getElementById('equipped-pets');
-            petsGrid.innerHTML = '';
-            
-            if (data.inventory && data.inventory.length > 0) {
-                data.inventory.forEach(pet => {
-                    const petCard = document.createElement('div');
-                    petCard.className = 'pet-card';
-                    petCard.innerHTML = `
-                        <div>🐾 ${pet}</div>
-                        <div>+1 к клику</div>
-                    `;
-                    petsGrid.appendChild(petCard);
-                });
-            } else {
-                petsGrid.innerHTML = '<div class="pet-card">Нет питомцев</div>';
+            if (petsGrid) {
+                petsGrid.innerHTML = '';
+                
+                if (data.inventory && data.inventory.length > 0) {
+                    data.inventory.forEach(pet => {
+                        const petCard = document.createElement('div');
+                        petCard.className = 'pet-card';
+                        petCard.innerHTML = `
+                            <div>🐾 ${pet}</div>
+                            <div>+1 к клику</div>
+                        `;
+                        petsGrid.appendChild(petCard);
+                    });
+                } else {
+                    petsGrid.innerHTML = '<div class="pet-card">Нет питомцев</div>';
+                }
             }
         }
 
@@ -214,22 +236,6 @@
                 console.error('Error loading stats:', error);
             }
         }
-
-        // Обработка клика
-        let clickInProgress = false;
-        clickButton.addEventListener('click', async () => {
-            if (clickInProgress) return;
-            clickInProgress = true;
-
-            try {
-                const data = await sendAction('click');
-                updateStats(data);
-            } catch (error) {
-                console.error('Error clicking:', error);
-            } finally {
-                clickInProgress = false;
-            }
-        });
 
         // Обработка улучшения клика
         document.getElementById('upgrade-click').addEventListener('click', async () => {
