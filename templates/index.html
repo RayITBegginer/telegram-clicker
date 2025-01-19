@@ -107,15 +107,17 @@
         }
 
         clickButton.addEventListener('click', async () => {
-            const currentClicks = parseInt(clicksElement.textContent);
-            const clickPower = parseInt(clickPowerElement.textContent);
+            const currentClicks = parseInt(clicksElement.textContent) || 0;
+            const clickPower = parseInt(clickPowerElement.textContent) || 1;
+            
             clicksElement.textContent = currentClicks + clickPower;
             
             try {
                 const data = await sendAction('click');
-                updateStats(data);
+                if (data && data.clicks !== undefined) {
+                    updateStats(data);
+                }
             } catch (error) {
-                clicksElement.textContent = currentClicks;
                 console.error('Error clicking:', error);
             }
         });
