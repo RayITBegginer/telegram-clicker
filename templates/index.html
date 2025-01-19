@@ -173,21 +173,50 @@
             }
         }
 
-        // Обработка клика
-        let clickInProgress = false;
-        clickButton.addEventListener('click', async () => {
-            // Временно обновляем значение до ответа сервера
-            const currentClicks = parseInt(clicksElement.textContent);
-            const clickPower = parseInt(clickPowerElement.textContent);
-            clicksElement.textContent = currentClicks + clickPower;
+        // Очередь кликов
+        let clickQueue = [];
+        let isProcessing = false;
 
+        // Обработка очереди кликов
+        async function processClickQueue() {
+            if (isProcessing || clickQueue.length === 0) return;
+            
+            isProcessing = true;
+            
             try {
-                const data = await sendAction('click');
-                updateStats(data);
+                while (clickQueue.length > 0) {
+                    // Берем все клики из очереди
+                    const clicks = clickQueue.length;
+                    clickQueue = [];
+                    
+                    // Временно обновляем значение
+                    const currentClicks = parseInt(clicksElement.textContent);
+                    const clickPower = parseInt(clickPowerElement.textContent);
+                    const newClicks = currentClicks + (clickPower * clicks);
+                    clicksElement.textContent = newClicks;
+                    
+                    // Отправляем на сервер
+                    const data = await sendAction('click');
+                    if (data) {
+                        updateStats(data);
+                    }
+                }
             } catch (error) {
-                // Если ошибка, возвращаем старое значение
-                clicksElement.textContent = currentClicks;
-                console.error('Error clicking:', error);
+                console.error('Error processing clicks:', error);
+            } finally {
+                isProcessing = false;
+                // Проверяем, не появились ли новые клики во время обработки
+                if (clickQueue.length > 0) {
+                    processClickQueue();
+                }
+            }
+        }
+
+        // Обработка клика
+        clickButton.addEventListener('click', () => {
+            clickQueue.push(Date.now());
+            if (!isProcessing) {
+                processClickQueue();
             }
         });
 

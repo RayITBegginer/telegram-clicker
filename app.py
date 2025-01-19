@@ -19,13 +19,15 @@ def index():
 def click():
     data = request.json
     user_id = data.get('user_id')
-    
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
     
-    # Обновляем клики пользователя
-    user_stats = db.click(user_id)
-    return jsonify(user_stats)
+    try:
+        result = db.click(user_id)
+        return jsonify(result)
+    except Exception as e:
+        app.logger.error(f'Error processing click: {e}')
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/stats', methods=['GET'])
 def get_stats():

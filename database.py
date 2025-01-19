@@ -122,8 +122,13 @@ class Database:
         # Сохраняем изменения
         self.save()
         
-        # Возвращаем обновленные данные
-        return user
+        return {
+            'clicks': user['clicks'],
+            'click_power': user['click_power'],
+            'passive_income': user['passive_income'],
+            'inventory': user.get('inventory', []),
+            'equipped_pets': user.get('equipped_pets', [])
+        }
 
     def buy_box(self, user_id):
         user = self.get_user_stats(user_id)
