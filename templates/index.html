@@ -114,7 +114,7 @@
             
             try {
                 const data = await sendAction('click');
-                if (data && data.clicks !== undefined) {
+                if (data) {
                     updateStats(data);
                 }
             } catch (error) {
@@ -124,11 +124,14 @@
 
         document.getElementById('upgrade-click').addEventListener('click', async () => {
             const currentClicks = parseInt(clicksElement.textContent) || 0;
+            const currentPower = parseInt(clickPowerElement.textContent) || 1;
             const cost = parseInt(document.getElementById('click-cost').textContent) || 50;
             
             if (currentClicks >= cost) {
                 clicksElement.textContent = currentClicks - cost;
-                clickPowerElement.textContent = parseInt(clickPowerElement.textContent) + 1;
+                clickPowerElement.textContent = currentPower + 1;
+                document.getElementById('click-cost').textContent = 
+                    Math.floor(50 * Math.pow(1.5, currentPower));
                 
                 try {
                     const data = await sendAction('upgrade_click');
@@ -145,11 +148,14 @@
 
         document.getElementById('upgrade-passive').addEventListener('click', async () => {
             const currentClicks = parseInt(clicksElement.textContent) || 0;
+            const currentPassive = parseInt(passiveIncomeElement.textContent) || 0;
             const cost = parseInt(document.getElementById('passive-cost').textContent) || 100;
             
             if (currentClicks >= cost) {
                 clicksElement.textContent = currentClicks - cost;
-                passiveIncomeElement.textContent = parseInt(passiveIncomeElement.textContent) + 1;
+                passiveIncomeElement.textContent = currentPassive + 1;
+                document.getElementById('passive-cost').textContent = 
+                    Math.floor(100 * Math.pow(1.5, currentPassive + 1));
                 
                 try {
                     const data = await sendAction('upgrade_passive');
@@ -174,8 +180,8 @@
                 try {
                     const data = await sendAction('box');
                     if (data && data.pet_info) {
-                        alert(`Вы получили питомца: ${data.pet_info.name}!`);
                         updateStats(data.user_stats);
+                        alert(`Вы получили питомца: ${data.pet_info.name}!`);
                     }
                 } catch (error) {
                     console.error('Error opening box:', error);
@@ -192,14 +198,25 @@
         function updateStats(data) {
             if (!data) return;
             
-            clicksElement.textContent = data.clicks;
-            clickPowerElement.textContent = data.click_power;
-            passiveIncomeElement.textContent = data.passive_income;
+            if (data.clicks !== parseInt(clicksElement.textContent)) {
+                clicksElement.textContent = data.clicks;
+            }
+            if (data.click_power !== parseInt(clickPowerElement.textContent)) {
+                clickPowerElement.textContent = data.click_power;
+            }
+            if (data.passive_income !== parseInt(passiveIncomeElement.textContent)) {
+                passiveIncomeElement.textContent = data.passive_income;
+            }
             
-            document.getElementById('click-cost').textContent = 
-                Math.floor(50 * Math.pow(1.5, data.click_power - 1));
-            document.getElementById('passive-cost').textContent = 
-                Math.floor(100 * Math.pow(1.5, data.passive_income));
+            const newClickCost = Math.floor(50 * Math.pow(1.5, data.click_power - 1));
+            const newPassiveCost = Math.floor(100 * Math.pow(1.5, data.passive_income));
+            
+            if (newClickCost !== parseInt(document.getElementById('click-cost').textContent)) {
+                document.getElementById('click-cost').textContent = newClickCost;
+            }
+            if (newPassiveCost !== parseInt(document.getElementById('passive-cost').textContent)) {
+                document.getElementById('passive-cost').textContent = newPassiveCost;
+            }
             
             const petsElement = document.getElementById('equipped-pets');
             petsElement.innerHTML = '';
@@ -208,42 +225,33 @@
                 data.inventory.forEach(pet => {
                     const petCard = document.createElement('div');
                     petCard.className = 'pet-card';
-                    petCard.innerHTML = `
-                        <div class="pet-info">🐾 ${pet}</div>
-                        <button class="equip-button" onclick="equipPet('${pet}')">Экипировать</button>
-                    `;
+                    petCard.dataset.pet = pet;
+                    if (data.equipped_pets && data.equipped_pets.includes(pet)) {
+                        petCard.classList.add('equipped');
+                    }
                     
-                    petCard.querySelector('.pet-info').addEventListener('click', () => {
-                        showPetInfo(pet);
-                    });
+                    petCard.innerHTML = `
+                        <div class="pet-info" onclick="showPetInfo('${pet}')">🐾 ${pet}</div>
+                        ${data.equipped_pets && data.equipped_pets.includes(pet) 
+                            ? `<button onclick="unequipPet('${pet}')">Снять</button>`
+                            : `<button onclick="equipPet('${pet}')">Экипировать</button>`
+                        }
+                    `;
                     
                     petsElement.appendChild(petCard);
                 });
             } else {
                 petsElement.innerHTML = '<p>Нет питомцев</p>';
             }
-            
-            if (data.equipped_pets && data.equipped_pets.length > 0) {
-                const equippedDiv = document.createElement('div');
-                equippedDiv.className = 'equipped-pets';
-                equippedDiv.innerHTML = '<h4>Экипированные питомцы:</h4>';
-                
-                data.equipped_pets.forEach(pet => {
-                    const petDiv = document.createElement('div');
-                    petDiv.className = 'equipped-pet';
-                    petDiv.innerHTML = `
-                        <div class="pet-info">🐾 ${pet}</div>
-                        <button class="unequip-button" onclick="unequipPet('${pet}')">Снять</button>
-                    `;
-                    equippedDiv.appendChild(petDiv);
-                });
-                
-                petsElement.insertBefore(equippedDiv, petsElement.firstChild);
-            }
         }
 
         async function equipPet(pet) {
             try {
+                const petElement = document.querySelector(`[data-pet="${pet}"]`);
+                if (petElement) {
+                    petElement.classList.add('equipped');
+                }
+                
                 const data = await sendAction('equip_pet', { pet: pet });
                 if (data) {
                     updateStats(data);
@@ -255,6 +263,11 @@
 
         async function unequipPet(pet) {
             try {
+                const petElement = document.querySelector(`[data-pet="${pet}"]`);
+                if (petElement) {
+                    petElement.classList.remove('equipped');
+                }
+                
                 const data = await sendAction('unequip_pet', { pet: pet });
                 if (data) {
                     updateStats(data);
@@ -286,14 +299,16 @@
         }
 
         setInterval(async () => {
-            const passiveIncome = parseInt(passiveIncomeElement.textContent);
+            const passiveIncome = parseInt(passiveIncomeElement.textContent) || 0;
             if (passiveIncome > 0) {
-                const currentClicks = parseInt(clicksElement.textContent);
+                const currentClicks = parseInt(clicksElement.textContent) || 0;
                 clicksElement.textContent = currentClicks + passiveIncome;
                 
                 try {
                     const data = await sendAction('passive_income');
-                    updateStats(data);
+                    if (data) {
+                        updateStats(data);
+                    }
                 } catch (error) {
                     console.error('Error in passive income:', error);
                 }
