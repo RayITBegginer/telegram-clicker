@@ -106,86 +106,62 @@
             }
         }
 
-        clickButton.addEventListener('click', async () => {
+        clickButton.addEventListener('click', () => {
             const currentClicks = parseInt(clicksElement.textContent) || 0;
             const clickPower = parseInt(clickPowerElement.textContent) || 1;
             
             clicksElement.textContent = currentClicks + clickPower;
             
-            try {
-                const data = await sendAction('click');
-                if (data) {
-                    updateStats(data);
-                }
-            } catch (error) {
-                console.error('Error clicking:', error);
-            }
+            sendAction('click').then(data => {
+                if (data) updateStats(data);
+            }).catch(console.error);
         });
 
-        document.getElementById('upgrade-click').addEventListener('click', async () => {
+        document.getElementById('upgrade-click').addEventListener('click', () => {
             const currentClicks = parseInt(clicksElement.textContent) || 0;
-            const currentPower = parseInt(clickPowerElement.textContent) || 1;
             const cost = parseInt(document.getElementById('click-cost').textContent) || 50;
             
             if (currentClicks >= cost) {
                 clicksElement.textContent = currentClicks - cost;
-                clickPowerElement.textContent = currentPower + 1;
-                document.getElementById('click-cost').textContent = 
-                    Math.floor(50 * Math.pow(1.5, currentPower));
+                clickPowerElement.textContent = parseInt(clickPowerElement.textContent) + 1;
                 
-                try {
-                    const data = await sendAction('upgrade_click');
-                    if (data) {
-                        updateStats(data);
-                    }
-                } catch (error) {
-                    console.error('Error upgrading click:', error);
-                }
+                sendAction('upgrade_click').then(data => {
+                    if (data) updateStats(data);
+                }).catch(console.error);
             } else {
                 alert('Недостаточно кликов!');
             }
         });
 
-        document.getElementById('upgrade-passive').addEventListener('click', async () => {
+        document.getElementById('upgrade-passive').addEventListener('click', () => {
             const currentClicks = parseInt(clicksElement.textContent) || 0;
-            const currentPassive = parseInt(passiveIncomeElement.textContent) || 0;
             const cost = parseInt(document.getElementById('passive-cost').textContent) || 100;
             
             if (currentClicks >= cost) {
                 clicksElement.textContent = currentClicks - cost;
-                passiveIncomeElement.textContent = currentPassive + 1;
-                document.getElementById('passive-cost').textContent = 
-                    Math.floor(100 * Math.pow(1.5, currentPassive + 1));
+                passiveIncomeElement.textContent = parseInt(passiveIncomeElement.textContent) + 1;
                 
-                try {
-                    const data = await sendAction('upgrade_passive');
-                    if (data) {
-                        updateStats(data);
-                    }
-                } catch (error) {
-                    console.error('Error upgrading passive:', error);
-                }
+                sendAction('upgrade_passive').then(data => {
+                    if (data) updateStats(data);
+                }).catch(console.error);
             } else {
                 alert('Недостаточно кликов!');
             }
         });
 
-        document.getElementById('box-button').addEventListener('click', async () => {
+        document.getElementById('box-button').addEventListener('click', () => {
             const currentClicks = parseInt(clicksElement.textContent) || 0;
             const BOX_COST = 500;
             
             if (currentClicks >= BOX_COST) {
                 clicksElement.textContent = currentClicks - BOX_COST;
                 
-                try {
-                    const data = await sendAction('box');
+                sendAction('box').then(data => {
                     if (data && data.pet_info) {
                         updateStats(data.user_stats);
-                        alert(`Вы получили питомца: ${data.pet_info.name}!`);
+                        showPetInfo(data.pet_info.name);
                     }
-                } catch (error) {
-                    console.error('Error opening box:', error);
-                }
+                }).catch(console.error);
             } else {
                 alert('Недостаточно кликов! Нужно 500');
             }
@@ -198,27 +174,24 @@
         function updateStats(data) {
             if (!data) return;
             
-            if (data.clicks !== parseInt(clicksElement.textContent)) {
+            requestAnimationFrame(() => {
                 clicksElement.textContent = data.clicks;
-            }
-            if (data.click_power !== parseInt(clickPowerElement.textContent)) {
                 clickPowerElement.textContent = data.click_power;
-            }
-            if (data.passive_income !== parseInt(passiveIncomeElement.textContent)) {
                 passiveIncomeElement.textContent = data.passive_income;
-            }
-            
-            const newClickCost = Math.floor(50 * Math.pow(1.5, data.click_power - 1));
-            const newPassiveCost = Math.floor(100 * Math.pow(1.5, data.passive_income));
-            
-            if (newClickCost !== parseInt(document.getElementById('click-cost').textContent)) {
-                document.getElementById('click-cost').textContent = newClickCost;
-            }
-            if (newPassiveCost !== parseInt(document.getElementById('passive-cost').textContent)) {
-                document.getElementById('passive-cost').textContent = newPassiveCost;
-            }
-            
+                
+                document.getElementById('click-cost').textContent = 
+                    Math.floor(50 * Math.pow(1.5, data.click_power - 1));
+                document.getElementById('passive-cost').textContent = 
+                    Math.floor(100 * Math.pow(1.5, data.passive_income));
+                
+                updateInventory(data);
+            });
+        }
+
+        function updateInventory(data) {
             const petsElement = document.getElementById('equipped-pets');
+            if (!petsElement) return;
+            
             petsElement.innerHTML = '';
             
             if (data.inventory && data.inventory.length > 0) {
@@ -226,16 +199,16 @@
                     const petCard = document.createElement('div');
                     petCard.className = 'pet-card';
                     petCard.dataset.pet = pet;
-                    if (data.equipped_pets && data.equipped_pets.includes(pet)) {
-                        petCard.classList.add('equipped');
-                    }
+                    
+                    const isEquipped = data.equipped_pets && data.equipped_pets.includes(pet);
                     
                     petCard.innerHTML = `
-                        <div class="pet-info" onclick="showPetInfo('${pet}')">🐾 ${pet}</div>
-                        ${data.equipped_pets && data.equipped_pets.includes(pet) 
-                            ? `<button onclick="unequipPet('${pet}')">Снять</button>`
-                            : `<button onclick="equipPet('${pet}')">Экипировать</button>`
-                        }
+                        <div class="pet-name" onclick="showPetInfo('${pet}')">
+                            🐾 ${pet} ${isEquipped ? '(Экипирован)' : ''}
+                        </div>
+                        <button onclick="${isEquipped ? 'unequipPet' : 'equipPet'}('${pet}')">
+                            ${isEquipped ? 'Снять' : 'Экипировать'}
+                        </button>
                     `;
                     
                     petsElement.appendChild(petCard);
@@ -245,47 +218,43 @@
             }
         }
 
-        async function equipPet(pet) {
-            try {
-                const petElement = document.querySelector(`[data-pet="${pet}"]`);
-                if (petElement) {
-                    petElement.classList.add('equipped');
-                }
-                
-                const data = await sendAction('equip_pet', { pet: pet });
-                if (data) {
-                    updateStats(data);
-                }
-            } catch (error) {
-                console.error('Error equipping pet:', error);
-            }
-        }
-
-        async function unequipPet(pet) {
-            try {
-                const petElement = document.querySelector(`[data-pet="${pet}"]`);
-                if (petElement) {
-                    petElement.classList.remove('equipped');
-                }
-                
-                const data = await sendAction('unequip_pet', { pet: pet });
-                if (data) {
-                    updateStats(data);
-                }
-            } catch (error) {
-                console.error('Error unequipping pet:', error);
-            }
-        }
-
         function showPetInfo(pet) {
             const petInfo = PETS[pet];
             if (petInfo) {
-                alert(`
-                    Имя: ${petInfo.name}
-                    Бонус к клику: +${petInfo.click_power}
-                    Редкость: ${petInfo.rarity}
-                `);
+                const infoDiv = document.createElement('div');
+                infoDiv.className = 'pet-info-popup';
+                infoDiv.innerHTML = `
+                    <h3>${petInfo.name}</h3>
+                    <p>Бонус к клику: +${petInfo.click_power}</p>
+                    <p>Редкость: ${petInfo.rarity}</p>
+                    <button onclick="this.parentElement.remove()">Закрыть</button>
+                `;
+                document.body.appendChild(infoDiv);
             }
+        }
+
+        function equipPet(pet) {
+            const petCard = document.querySelector(`[data-pet="${pet}"]`);
+            if (petCard) {
+                petCard.querySelector('button').textContent = 'Снять';
+                petCard.querySelector('button').onclick = () => unequipPet(pet);
+            }
+            
+            sendAction('equip_pet', { pet }).then(data => {
+                if (data) updateStats(data);
+            }).catch(console.error);
+        }
+
+        function unequipPet(pet) {
+            const petCard = document.querySelector(`[data-pet="${pet}"]`);
+            if (petCard) {
+                petCard.querySelector('button').textContent = 'Экипировать';
+                petCard.querySelector('button').onclick = () => equipPet(pet);
+            }
+            
+            sendAction('unequip_pet', { pet }).then(data => {
+                if (data) updateStats(data);
+            }).catch(console.error);
         }
 
         async function loadStats() {
