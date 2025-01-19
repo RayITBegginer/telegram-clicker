@@ -2,6 +2,7 @@ import json
 import os
 from datetime import datetime
 from config import PETS, BOX_CHANCES, BOX_COST
+import random
 
 class Database:
     def __init__(self):
@@ -109,34 +110,37 @@ class Database:
         
         # Подсчет силы клика с учетом питомцев
         click_power = user['click_power']
-        for pet_type in user['equipped_pets']:
-            click_power += PETS[pet_type]['click_power']
+        for pet in user['equipped_pets']:
+            if pet in PETS:
+                click_power += PETS[pet]['click_power']
         
         user['clicks'] += click_power
         user['achievements']['clicks_made'] += 1
         self.save()
-        
         return user
 
     def buy_box(self, user_id):
         user = self.get_user_stats(user_id)
+        BOX_COST = 500
         
-        if user['clicks'] < BOX_COST:
-            return None
+        if user['clicks'] >= BOX_COST:
+            user['clicks'] -= BOX_COST
             
-        user['clicks'] -= BOX_COST
-        user['achievements']['boxes_opened'] += 1
-        
-        # Логика получения питомца из бокса
-        pet = self.get_random_pet()
-        user['inventory'].append(pet)
-        user['achievements']['pets_collected'] += 1
-        
-        self.save()
-        return {
-            'user_stats': user,
-            'pet_info': PETS[pet]
-        }
+            # Получаем случайного питомца
+            pet = random.choice(list(PETS.keys()))
+            if 'inventory' not in user:
+                user['inventory'] = []
+            user['inventory'].append(pet)
+            
+            user['achievements']['boxes_opened'] += 1
+            user['achievements']['pets_collected'] += 1
+            self.save()
+            
+            return {
+                'user_stats': user,
+                'pet_info': PETS[pet]
+            }
+        return None
 
     def get_achievements(self, user_id):
         user = self.get_user_stats(user_id)
@@ -213,7 +217,7 @@ class Database:
 
     def upgrade_click(self, user_id):
         user = self.get_user_stats(user_id)
-        cost = 100 * user['click_power']
+        cost = 50 * (user['click_power'])  # Уменьшили базовую цену
         
         if user['clicks'] >= cost:
             user['clicks'] -= cost
@@ -224,7 +228,7 @@ class Database:
 
     def upgrade_passive(self, user_id):
         user = self.get_user_stats(user_id)
-        cost = 200 * (user['passive_income'] + 1)
+        cost = 100 * (user['passive_income'] + 1)  # Уменьшили базовую цену
         
         if user['clicks'] >= cost:
             user['clicks'] -= cost

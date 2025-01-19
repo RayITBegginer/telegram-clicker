@@ -115,11 +115,19 @@
         </div>
 
         <button class="click-button" id="click-button">Клик!</button>
-        <button class="click-button" id="box-button">Открыть бокс (500 кликов)</button>
 
         <div class="upgrades">
-            <button class="click-button" id="upgrade-click">Улучшить клик (100 💰)</button>
-            <button class="click-button" id="upgrade-passive">Улучшить доход (200 💰)</button>
+            <button class="click-button" id="upgrade-click">Улучшить клик (<span id="click-cost">50</span> 💰)</button>
+            <button class="click-button" id="upgrade-passive">Улучшить доход (<span id="passive-cost">100</span> 💰)</button>
+        </div>
+
+        <div class="inventory">
+            <h3>🎁 Инвентарь</h3>
+            <button class="click-button" id="box-button">Открыть бокс (500 💰)</button>
+            <div class="pets">
+                <h4>Питомцы:</h4>
+                <div id="equipped-pets"></div>
+            </div>
         </div>
 
         <div class="leaderboard">
@@ -141,18 +149,15 @@
                 </table>
             </div>
         </div>
-
-        <div class="inventory">
-            <h3>🎁 Инвентарь</h3>
-            <button class="click-button" id="box-button">Открыть бокс (500 💰)</button>
-            <div class="pets">
-                <h4>Питомцы:</h4>
-                <div id="equipped-pets"></div>
-            </div>
-        </div>
     </div>
 
     <script>
+        const PETS = {
+            'cat': { name: 'Кот', power: 1 },
+            'dog': { name: 'Собака', power: 2 },
+            'dragon': { name: 'Дракон', power: 5 }
+        };
+
         // Получаем user_id из URL параметров
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('user_id');
@@ -189,17 +194,23 @@
             clickPowerElement.textContent = data.click_power;
             passiveIncomeElement.textContent = data.passive_income;
             
-            // Обновляем питомцев
-            equippedPetsElement.innerHTML = '';
-            if (data.equipped_pets && data.equipped_pets.length > 0) {
-                data.equipped_pets.forEach(pet => {
+            // Обновляем цены апгрейдов
+            document.getElementById('click-cost').textContent = 50 * data.click_power;
+            document.getElementById('passive-cost').textContent = 100 * (data.passive_income + 1);
+            
+            // Обновляем инвентарь
+            const petsElement = document.getElementById('equipped-pets');
+            petsElement.innerHTML = '';
+            
+            if (data.inventory && data.inventory.length > 0) {
+                data.inventory.forEach(pet => {
                     const petElement = document.createElement('div');
                     petElement.className = 'pet';
-                    petElement.textContent = pet;
-                    equippedPetsElement.appendChild(petElement);
+                    petElement.textContent = `🐾 ${pet}`;
+                    petsElement.appendChild(petElement);
                 });
             } else {
-                equippedPetsElement.innerHTML = '<p>Нет питомцев</p>';
+                petsElement.innerHTML = '<p>Нет питомцев</p>';
             }
         }
 
@@ -313,6 +324,15 @@
         setInterval(updateLeaderboard, 5000);
         // Загружаем таблицу при старте
         updateLeaderboard();
+
+        // Пассивный доход каждую секунду
+        setInterval(async () => {
+            if (parseInt(passiveIncomeElement.textContent) > 0) {
+                const currentClicks = parseInt(clicksElement.textContent);
+                const passiveIncome = parseInt(passiveIncomeElement.textContent);
+                clicksElement.textContent = currentClicks + passiveIncome;
+            }
+        }, 1000);
     </script>
 </body>
 </html> 
