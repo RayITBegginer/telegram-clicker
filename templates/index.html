@@ -151,11 +151,6 @@
             throw new Error('No user_id provided');
         }
 
-        // Переключение инвентаря
-        inventoryButton.addEventListener('click', () => {
-            inventoryContainer.classList.toggle('active');
-        });
-
         // Отправка действий на сервер
         async function sendAction(action, data = {}) {
             try {
@@ -173,49 +168,22 @@
             }
         }
 
-        // Очередь кликов
-        let clickQueue = [];
-        let isProcessing = false;
-
-        // Обработка очереди кликов
-        async function processClickQueue() {
-            if (isProcessing || clickQueue.length === 0) return;
+        // Обработка клика
+        clickButton.addEventListener('click', async () => {
+            const currentClicks = parseInt(clicksElement.textContent) || 0;
+            const clickPower = parseInt(clickPowerElement.textContent) || 1;
             
-            isProcessing = true;
+            // Мгновенно обновляем отображение
+            clicksElement.textContent = currentClicks + clickPower;
             
             try {
-                while (clickQueue.length > 0) {
-                    const clicks = clickQueue.length;
-                    clickQueue = [];
-                    
-                    // Безопасное преобразование в число
-                    const currentClicks = parseInt(clicksElement.textContent) || 0;
-                    const clickPower = parseInt(clickPowerElement.textContent) || 1;
-                    const newClicks = currentClicks + (clickPower * clicks);
-                    
-                    // Проверка на NaN
-                    clicksElement.textContent = isNaN(newClicks) ? currentClicks : newClicks;
-                    
-                    const data = await sendAction('click');
-                    if (data) {
-                        updateStats(data);
-                    }
+                const data = await sendAction('click');
+                if (data) {
+                    updateStats(data);
                 }
             } catch (error) {
-                console.error('Error processing clicks:', error);
-            } finally {
-                isProcessing = false;
-                if (clickQueue.length > 0) {
-                    processClickQueue();
-                }
-            }
-        }
-
-        // Обработка клика
-        clickButton.addEventListener('click', () => {
-            clickQueue.push(Date.now());
-            if (!isProcessing) {
-                processClickQueue();
+                console.error('Error clicking:', error);
+                clicksElement.textContent = currentClicks; // Возвращаем предыдущее значение при ошибке
             }
         });
 
@@ -223,27 +191,23 @@
         function updateStats(data) {
             if (!data) return;
             
-            // Безопасное обновление значений с проверкой на NaN
             clicksElement.textContent = data.clicks || 0;
             clickPowerElement.textContent = data.click_power || 1;
             passiveIncomeElement.textContent = data.passive_income || 0;
             
-            // Безопасный расчет цен апгрейдов
-            const clickPower = parseInt(data.click_power) || 1;
-            const passiveIncome = parseInt(data.passive_income) || 0;
+            // Обновляем цены апгрейдов
+            const clickCost = Math.floor(50 * Math.pow(1.5, data.click_power - 1));
+            const passiveCost = Math.floor(100 * Math.pow(1.5, data.passive_income));
             
-            const clickCost = Math.floor(50 * Math.pow(1.5, clickPower - 1));
-            const passiveCost = Math.floor(100 * Math.pow(1.5, passiveIncome));
-            
-            document.getElementById('click-cost').textContent = isNaN(clickCost) ? 50 : clickCost;
-            document.getElementById('passive-cost').textContent = isNaN(passiveCost) ? 100 : passiveCost;
+            document.getElementById('click-cost').textContent = clickCost;
+            document.getElementById('passive-cost').textContent = passiveCost;
             
             // Обновляем инвентарь
             const petsGrid = document.getElementById('equipped-pets');
             if (petsGrid) {
                 petsGrid.innerHTML = '';
                 
-                if (data.inventory && Array.isArray(data.inventory) && data.inventory.length > 0) {
+                if (data.inventory && data.inventory.length > 0) {
                     data.inventory.forEach(pet => {
                         const petCard = document.createElement('div');
                         petCard.className = 'pet-card';
@@ -259,18 +223,10 @@
             }
         }
 
-        // Загрузка начальной статистики
-        async function loadStats() {
-            try {
-                const response = await fetch(`/api/stats?user_id=${userId}`);
-                const data = await response.json();
-                if (data) {
-                    updateStats(data);
-                }
-            } catch (error) {
-                console.error('Error loading stats:', error);
-            }
-        }
+        // Переключение инвентаря
+        inventoryButton.addEventListener('click', () => {
+            inventoryContainer.classList.toggle('active');
+        });
 
         // Обработка улучшения клика
         document.getElementById('upgrade-click').addEventListener('click', async () => {
@@ -320,12 +276,27 @@
             if (parseInt(passiveIncomeElement.textContent) > 0) {
                 try {
                     const data = await sendAction('passive_income');
-                    updateStats(data);
+                    if (data) {
+                        updateStats(data);
+                    }
                 } catch (error) {
                     console.error('Error in passive income:', error);
                 }
             }
         }, 1000);
+
+        // Загружаем начальную статистику
+        async function loadStats() {
+            try {
+                const response = await fetch(`/api/stats?user_id=${userId}`);
+                const data = await response.json();
+                if (data) {
+                    updateStats(data);
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
 
         // Загружаем начальную статистику
         loadStats();
