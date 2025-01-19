@@ -3,19 +3,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Токен бота
+# Основные настройки
 BOT_TOKEN = os.getenv('BOT_TOKEN')
-
-# URL веб-приложения
 WEBAPP_URL = os.getenv('WEBAPP_URL')
-
-# Настройки базы данных
 DATABASE_URL = os.getenv('DATABASE_URL', 'sqlite:///database.db')
 
 # Настройки игры
-CLICK_POWER = 1
-PASSIVE_INCOME = 0
 BOX_COST = 500
+MAX_EQUIPPED_PETS = 2
 
 # Питомцы и их характеристики
 PETS = {
@@ -31,4 +26,11 @@ BOX_CHANCES = {
     'common': 0.7,
     'rare': 0.25,
     'epic': 0.05
+}
+
+# Цвета для редкостей питомцев
+RARITY_COLORS = {
+    'common': '⚪️',
+    'rare': '🔵',
+    'epic': '🟣'
 } 

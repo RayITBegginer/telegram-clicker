@@ -11,14 +11,15 @@ def get_webapp_keyboard():
     ])
     return keyboard
 
-def get_inventory_keyboard(user_inventory):
+def get_inventory_keyboard(inventory, equipped_pets):
     """Создает клавиатуру для инвентаря питомцев"""
     keyboard = []
-    for i, pet_type in enumerate(set(user_inventory), 1):
-        count = user_inventory.count(pet_type)
+    for i, pet_type in enumerate(set(inventory), 1):
+        count = inventory.count(pet_type)
+        status = "🟢" if pet_type in equipped_pets else "⚪"
         keyboard.append([
             InlineKeyboardButton(
-                text=f"{i}. {pets[pet_type]['name']} (x{count})",
+                text=f"{status} {i}. {pets[pet_type]['name']} (x{count})",
                 callback_data=f"equip_{i-1}"
             )
         ])

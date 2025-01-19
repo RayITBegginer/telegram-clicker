@@ -5,6 +5,8 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 import os
 from dotenv import load_dotenv
+from keyboards import get_webapp_keyboard
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 
 load_dotenv()
 
@@ -34,7 +36,6 @@ box_chances = {
     'epic': 0.05
 }
 
-# Стоимость бокса
 BOX_COST = 500
 
 def save_users():
@@ -47,8 +48,8 @@ def create_user(user_id):
             'clicks': 0,
             'click_power': 1,
             'passive_income': 0,
-            'inventory': [],  # Инвентарь питомцев
-            'equipped_pets': []  # Экипированные питомцы (максимум 2)
+            'inventory': [],
+            'equipped_pets': []
         }
         save_users()
 
@@ -56,15 +57,21 @@ def create_user(user_id):
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
     create_user(user_id)
+    
+    # Добавляем user_id в URL
+    webapp_url = f"{os.getenv('WEBAPP_URL')}?user_id={user_id}"
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(
+            text="🎮 Играть",
+            web_app=WebAppInfo(url=webapp_url)
+        )]
+    ])
+    
     await message.answer(
         "Привет! Я бот-кликер.\n"
-        "Используй команды:\n"
-        "/click - кликнуть\n"
-        "/stats - статистика\n"
-        "/inventory - инвентарь питомцев\n"
-        "/box - открыть бокс (500 кликов)\n"
-        "/equip - экипировать питомца\n"
-        "/unequip - снять питомца"
+        "Нажми на кнопку ниже, чтобы начать игру!",
+        reply_markup=keyboard
     )
 
 @dp.message(Command('click'))
@@ -72,76 +79,15 @@ async def cmd_click(message: types.Message):
     user_id = str(message.from_user.id)
     create_user(user_id)
     
-    # Базовые клики
+    # Подсчет силы клика с учетом питомцев
     click_power = users[user_id]['click_power']
-    
-    # Бонус от экипированных питомцев
     for pet_type in users[user_id]['equipped_pets']:
         click_power += pets[pet_type]['click_power']
     
     users[user_id]['clicks'] += click_power
     save_users()
     
-    await message.answer(f"Клик! +{click_power} кликов\nВсего: {users[user_id]['clicks']}")
-
-@dp.message(Command('stats'))
-async def cmd_stats(message: types.Message):
-    user_id = str(message.from_user.id)
-    create_user(user_id)
-    
-    stats = users[user_id]
-    
-    # Подсчет общей силы клика и пассивного дохода
-    total_click_power = stats['click_power']
-    total_passive_income = stats['passive_income']
-    
-    for pet_type in stats['equipped_pets']:
-        total_click_power += pets[pet_type]['click_power']
-        total_passive_income += pets[pet_type]['passive_income']
-    
-    # Формируем список экипированных питомцев
-    equipped_list = "\n".join([f"- {pets[pet]['name']}" for pet in stats['equipped_pets']]) or "Нет экипированных питомцев"
-    
-    await message.answer(
-        f"Ваша статистика:\n"
-        f"Клики: {stats['clicks']}\n"
-        f"Базовая сила клика: {stats['click_power']}\n"
-        f"Общая сила клика: {total_click_power}\n"
-        f"Общий пассивный доход: {total_passive_income}/сек\n"
-        f"\nЭкипированные питомцы:\n{equipped_list}"
-    )
-
-@dp.message(Command('inventory'))
-async def cmd_inventory(message: types.Message):
-    user_id = str(message.from_user.id)
-    create_user(user_id)
-    
-    if not users[user_id]['inventory']:
-        await message.answer("Ваш инвентарь пуст! Используйте /box чтобы получить питомцев.")
-        return
-    
-    # Считаем количество каждого питомца
-    pet_counts = {}
-    for pet_type in users[user_id]['inventory']:
-        pet_counts[pet_type] = pet_counts.get(pet_type, 0) + 1
-    
-    # Формируем список питомцев
-    inventory_list = []
-    for pet_type, count in pet_counts.items():
-        pet = pets[pet_type]
-        status = "🟢" if pet_type in users[user_id]['equipped_pets'] else "⚪"
-        inventory_list.append(
-            f"{status} {pet['name']} (x{count})\n"
-            f"└ Клик: +{pet['click_power']}, Пассив: +{pet['passive_income']}"
-        )
-    
-    await message.answer(
-        f"Ваш инвентарь питомцев:\n\n"
-        f"{chr(10).join(inventory_list)}\n\n"
-        f"Команды:\n"
-        f"/equip [номер] - экипировать питомца\n"
-        f"/unequip [номер] - снять питомца"
-    )
+    await message.answer(f"Клик! +{click_power}\nВсего: {users[user_id]['clicks']} кликов")
 
 @dp.message(Command('box'))
 async def cmd_box(message: types.Message):
@@ -172,8 +118,39 @@ async def cmd_box(message: types.Message):
         f"🎉 Вы получили питомца: {pets[pet_type]['name']}!\n"
         f"Редкость: {rarity}\n"
         f"Клик: +{pets[pet_type]['click_power']}\n"
-        f"Пассив: +{pets[pet_type]['passive_income']}\n\n"
-        f"Используйте /inventory чтобы увидеть всех питомцев"
+        f"Пассив: +{pets[pet_type]['passive_income']}"
+    )
+
+@dp.message(Command('inventory'))
+async def cmd_inventory(message: types.Message):
+    user_id = str(message.from_user.id)
+    create_user(user_id)
+    
+    if not users[user_id]['inventory']:
+        await message.answer("У вас нет питомцев! Используйте /box чтобы получить питомца.")
+        return
+    
+    # Считаем количество каждого питомца
+    pet_counts = {}
+    for pet_type in users[user_id]['inventory']:
+        pet_counts[pet_type] = pet_counts.get(pet_type, 0) + 1
+    
+    # Формируем список питомцев
+    inventory_list = []
+    for i, (pet_type, count) in enumerate(pet_counts.items(), 1):
+        status = "🟢" if pet_type in users[user_id]['equipped_pets'] else "⚪"
+        inventory_list.append(
+            f"{status} {i}. {pets[pet_type]['name']} (x{count})\n"
+            f"└ Клик: +{pets[pet_type]['click_power']}, "
+            f"Пассив: +{pets[pet_type]['passive_income']}"
+        )
+    
+    await message.answer(
+        f"Ваши питомцы:\n\n"
+        f"{chr(10).join(inventory_list)}\n\n"
+        f"Команды:\n"
+        f"/equip [номер] - экипировать питомца\n"
+        f"/unequip [номер] - снять питомца"
     )
 
 @dp.message(Command('equip'))
@@ -218,6 +195,32 @@ async def cmd_unequip(message: types.Message):
     save_users()
     
     await message.answer(f"Вы сняли {pets[pet_type]['name']}!")
+
+@dp.message(Command('stats'))
+async def cmd_stats(message: types.Message):
+    user_id = str(message.from_user.id)
+    create_user(user_id)
+    
+    stats = users[user_id]
+    
+    # Подсчет общей силы клика и пассивного дохода
+    total_click_power = stats['click_power']
+    total_passive_income = stats['passive_income']
+    
+    for pet_type in stats['equipped_pets']:
+        total_click_power += pets[pet_type]['click_power']
+        total_passive_income += pets[pet_type]['passive_income']
+    
+    # Формируем список питомцев
+    pets_list = "\n".join([f"- {pets[pet]['name']}" for pet in stats['equipped_pets']]) if stats['equipped_pets'] else "Нет питомцев"
+    
+    await message.answer(
+        f"Ваша статистика:\n"
+        f"Клики: {stats['clicks']}\n"
+        f"Общая сила клика: {total_click_power}\n"
+        f"Общий пассивный доход: {total_passive_income}/сек\n"
+        f"\nЭкипированные питомцы:\n{pets_list}"
+    )
 
 # Пассивный доход
 async def passive_income():

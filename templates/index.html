@@ -13,13 +13,11 @@
             background-color: var(--tg-theme-bg-color, #fff);
             color: var(--tg-theme-text-color, #000);
         }
-
         .container {
             max-width: 600px;
             margin: 0 auto;
             text-align: center;
         }
-
         .click-button {
             background-color: var(--tg-theme-button-color, #2481cc);
             color: var(--tg-theme-button-text-color, #fff);
@@ -29,37 +27,81 @@
             font-size: 18px;
             margin: 20px 0;
             cursor: pointer;
-            transition: transform 0.1s;
         }
-
-        .click-button:active {
-            transform: scale(0.95);
-        }
-
         .stats {
             background-color: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            padding: 15px;
             border-radius: 10px;
-            padding: 20px;
             margin: 20px 0;
         }
-
         .pets {
             display: flex;
             flex-wrap: wrap;
-            justify-content: center;
             gap: 10px;
+            justify-content: center;
             margin: 20px 0;
         }
-
         .pet {
             background-color: var(--tg-theme-secondary-bg-color, #f5f5f5);
-            border-radius: 10px;
             padding: 10px;
-            width: 120px;
+            border-radius: 5px;
+        }
+        .leaderboard {
+            margin: 20px 0;
+            padding: 15px;
+            background-color: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            border-radius: 10px;
+        }
+        
+        .table-container {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+        
+        .leaderboard table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        
+        .leaderboard th {
+            position: sticky;
+            top: 0;
+            background-color: var(--tg-theme-secondary-bg-color, #f5f5f5);
+            padding: 8px;
+            text-align: center;
+            border-bottom: 2px solid var(--tg-theme-hint-color, #ccc);
+        }
+        
+        .leaderboard td {
+            padding: 6px;
+            text-align: center;
+            border-bottom: 1px solid var(--tg-theme-hint-color, #ccc);
+        }
+        
+        /* Стили для призовых мест */
+        .leaderboard tr:nth-child(1) td {
+            background-color: rgba(255, 215, 0, 0.1);
+            font-weight: bold;
+        }
+        
+        .leaderboard tr:nth-child(2) td {
+            background-color: rgba(192, 192, 192, 0.1);
+        }
+        
+        .leaderboard tr:nth-child(3) td {
+            background-color: rgba(205, 127, 50, 0.1);
         }
 
-        .pet.equipped {
-            border: 2px solid var(--tg-theme-button-color, #2481cc);
+        /* Анимация при обновлении */
+        @keyframes highlight {
+            from { background-color: rgba(255, 255, 0, 0.2); }
+            to { background-color: transparent; }
+        }
+
+        .highlight {
+            animation: highlight 1s ease-out;
         }
     </style>
 </head>
@@ -72,76 +114,166 @@
             <p>Пассивный доход: <span id="passive-income">0</span>/сек</p>
         </div>
 
-        <button class="click-button" id="clickButton">
-            Клик!
-        </button>
+        <button class="click-button" id="click-button">Клик!</button>
+        <button class="click-button" id="box-button">Открыть бокс (500 кликов)</button>
+
+        <div class="leaderboard">
+            <h3>🏆 Топ 50 игроков</h3>
+            <div class="table-container">
+                <table id="leaderboard-table">
+                    <thead>
+                        <tr>
+                            <th>№</th>
+                            <th>ID</th>
+                            <th>💰 Баланс</th>
+                            <th>🐾 Питомцы</th>
+                            <th>💪 Сила</th>
+                        </tr>
+                    </thead>
+                    <tbody id="leaderboard-body">
+                        <!-- Здесь будут строки таблицы -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
 
         <div class="pets">
-            <h2>Экипированные питомцы</h2>
+            <h3>Питомцы</h3>
             <div id="equipped-pets"></div>
         </div>
     </div>
 
     <script>
-        let tg = window.Telegram.WebApp;
-        tg.expand();
+        // Получаем user_id из URL параметров
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user_id');
 
-        let userId = tg.initDataUnsafe.user.id;
-        let clickButton = document.getElementById('clickButton');
-        let clicksDisplay = document.getElementById('clicks');
-        let clickPowerDisplay = document.getElementById('click-power');
-        let passiveIncomeDisplay = document.getElementById('passive-income');
-        let equippedPetsContainer = document.getElementById('equipped-pets');
+        // Если нет user_id, показываем ошибку
+        if (!userId) {
+            document.body.innerHTML = '<div class="container"><h2>Ошибка: Откройте игру через Telegram бота!</h2></div>';
+            throw new Error('No user_id provided');
+        }
 
-        // Загрузка начальной статистики
+        // Элементы интерфейса
+        const clicksElement = document.getElementById('clicks');
+        const clickPowerElement = document.getElementById('click-power');
+        const passiveIncomeElement = document.getElementById('passive-income');
+        const equippedPetsElement = document.getElementById('equipped-pets');
+        const clickButton = document.getElementById('click-button');
+        const boxButton = document.getElementById('box-button');
+
+        // Загрузка статистики
         async function loadStats() {
             try {
                 const response = await fetch(`/api/stats?user_id=${userId}`);
-                const stats = await response.json();
-                updateStats(stats);
+                if (!response.ok) throw new Error('Failed to load stats');
+                const data = await response.json();
+                updateStats(data);
             } catch (error) {
                 console.error('Error loading stats:', error);
             }
         }
 
-        // Обновление отображения статистики
-        function updateStats(stats) {
-            clicksDisplay.textContent = stats.clicks;
-            clickPowerDisplay.textContent = stats.click_power;
-            passiveIncomeDisplay.textContent = stats.passive_income;
+        // Обновление статистики на странице
+        function updateStats(data) {
+            clicksElement.textContent = data.clicks;
+            clickPowerElement.textContent = data.click_power;
+            passiveIncomeElement.textContent = data.passive_income;
+            
+            // Обновляем питомцев
+            equippedPetsElement.innerHTML = '';
+            if (data.equipped_pets && data.equipped_pets.length > 0) {
+                data.equipped_pets.forEach(pet => {
+                    const petElement = document.createElement('div');
+                    petElement.className = 'pet';
+                    petElement.textContent = pet;
+                    equippedPetsElement.appendChild(petElement);
+                });
+            } else {
+                equippedPetsElement.innerHTML = '<p>Нет питомцев</p>';
+            }
+        }
 
-            // Обновление экипированных питомцев
-            equippedPetsContainer.innerHTML = '';
-            stats.equipped_pets.forEach(petType => {
-                const petDiv = document.createElement('div');
-                petDiv.className = 'pet equipped';
-                petDiv.textContent = petType;
-                equippedPetsContainer.appendChild(petDiv);
-            });
+        // Функция для отправки действий на сервер
+        async function sendAction(action, data = {}) {
+            try {
+                const response = await fetch(`/api/${action}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ user_id: userId, ...data })
+                });
+                return await response.json();
+            } catch (error) {
+                console.error(`Error in ${action}:`, error);
+                throw error;
+            }
         }
 
         // Обработка клика
         clickButton.addEventListener('click', async () => {
             try {
-                const response = await fetch('/api/click', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({ user_id: userId })
-                });
-                const stats = await response.json();
-                updateStats(stats);
+                const data = await sendAction('click');
+                updateStats(data);
             } catch (error) {
-                console.error('Error processing click:', error);
+                console.error('Error clicking:', error);
             }
         });
 
-        // Загрузка начальной статистики при запуске
+        // Обработка открытия бокса
+        boxButton.addEventListener('click', async () => {
+            try {
+                const data = await sendAction('box');
+                updateStats(data.user_stats);
+                alert(`Вы получили питомца: ${data.pet_info.name}!`);
+            } catch (error) {
+                console.error('Error opening box:', error);
+            }
+        });
+
+        // Инициализация Telegram WebApp
+        window.Telegram.WebApp.ready();
+
+        // Загружаем начальную статистику
         loadStats();
 
-        // Обновление статистики каждую секунду для пассивного дохода
+        // Обновляем статистику каждую секунду
         setInterval(loadStats, 1000);
+
+        // Функция обновления таблицы лидеров
+        async function updateLeaderboard() {
+            try {
+                console.log('Updating leaderboard...');
+                const leaderboard = await sendAction('leaderboard', { limit: 50 });
+                console.log('Received leaderboard data:', leaderboard);
+                
+                const tbody = document.getElementById('leaderboard-body');
+                tbody.innerHTML = '';
+                
+                leaderboard.forEach((player, index) => {
+                    console.log('Adding player:', player);
+                    const row = document.createElement('tr');
+                    const formattedClicks = new Intl.NumberFormat('ru-RU').format(player.clicks);
+                    
+                    row.innerHTML = `
+                        <td>${index + 1}</td>
+                        <td>${player.user_id}</td>
+                        <td>${formattedClicks}</td>
+                        <td>${player.pets_count}</td>
+                        <td>${player.click_power}</td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (error) {
+                console.error('Error updating leaderboard:', error);
+            }
+        }
+
+        // Обновляем таблицу лидеров каждые 5 секунд
+        setInterval(updateLeaderboard, 5000);
+        // Загружаем таблицу при старте
+        updateLeaderboard();
     </script>
 </body>
 </html> 
