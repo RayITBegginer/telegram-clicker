@@ -45,24 +45,27 @@ def save_users():
         json.dump(users, f)
 
 def create_user(user_id):
-    if str(user_id) not in users:
-        users[str(user_id)] = {
+    """Создает нового пользователя, если его нет в базе"""
+    if str(user_id) not in db.users:
+        db.users[str(user_id)] = {
             'clicks': 0,
             'click_power': 1,
             'passive_income': 0,
+            'equipped_pets': [],
             'inventory': [],
-            'equipped_pets': []
+            'achievements': {
+                'clicks_made': 0,
+                'boxes_opened': 0,
+                'pets_collected': 0
+            },
+            'last_save': None
         }
-        save_users()
+        db.save()
 
 @dp.message(Command('start'))
 async def cmd_start(message: types.Message):
-    user_id = message.from_user.id
-    
-    # Создаем пользователя, если его нет
-    user = db.get_user_stats(user_id)
-    if not user:
-        user = db.create_user(user_id)
+    user_id = str(message.from_user.id)
+    create_user(user_id)
     
     # Добавляем user_id в URL
     webapp_url = f"{os.getenv('WEBAPP_URL')}?user_id={user_id}"
@@ -75,10 +78,29 @@ async def cmd_start(message: types.Message):
     ])
     
     await message.answer(
-        "Привет! Я бот-кликер.\n"
-        "Нажми на кнопку ниже, чтобы начать игру!",
+        "👋 Привет! Я бот-кликер.\n"
+        "🎯 Кликай, улучшай, собирай питомцев!\n"
+        "🏆 Соревнуйся с другими игроками!\n\n"
+        "Нажми кнопку ниже, чтобы начать игру!",
         reply_markup=keyboard
     )
+
+@dp.message(Command('help'))
+async def cmd_help(message: types.Message):
+    help_text = (
+        "📖 Помощь по игре:\n\n"
+        "🖱 Кликай, чтобы получать очки\n"
+        "💪 Улучшай силу клика\n"
+        "⚡️ Увеличивай пассивный доход\n"
+        "🎁 Открывай боксы с питомцами\n"
+        "🐾 Питомцы увеличивают силу клика\n"
+        "🏆 Соревнуйся в таблице лидеров\n\n"
+        "Команды:\n"
+        "/start - Начать игру\n"
+        "/help - Показать эту справку\n"
+        "/stats - Показать статистику"
+    )
+    await message.answer(help_text)
 
 @dp.message(Command('click'))
 async def cmd_click(message: types.Message):
@@ -188,22 +210,23 @@ async def cmd_unequip(message: types.Message):
 
 @dp.message(Command('stats'))
 async def cmd_stats(message: types.Message):
-    user_id = message.from_user.id
-    user = db.get_user_stats(user_id)
-    
-    if not user:
-        await message.answer("Статистика не найдена!")
-        return
-    
-    stats_text = (
-        f"📊 Ваша статистика:\n"
-        f"💰 Кликов: {user['clicks']}\n"
-        f"💪 Сила клика: {user['click_power']}\n"
-        f"⚡️ Пассивный доход: {user['passive_income']}/сек\n"
-        f"🐾 Питомцев: {len(user.get('inventory', []))}"
-    )
-    
-    await message.answer(stats_text)
+    user_id = str(message.from_user.id)
+    if user_id in db.users:
+        user = db.users[user_id]
+        stats_text = (
+            "📊 Ваша статистика:\n\n"
+            f"💰 Клики: {user['clicks']}\n"
+            f"💪 Сила клика: {user['click_power']}\n"
+            f"⚡️ Пассивный доход: {user['passive_income']}/сек\n"
+            f"🐾 Питомцев: {len(user['inventory'])}\n\n"
+            f"🏆 Достижения:\n"
+            f"👆 Всего кликов: {user['achievements']['clicks_made']}\n"
+            f"📦 Боксов открыто: {user['achievements']['boxes_opened']}\n"
+            f"🌟 Питомцев получено: {user['achievements']['pets_collected']}"
+        )
+        await message.answer(stats_text)
+    else:
+        await message.answer("❌ Вы еще не начали игру! Используйте /start")
 
 @dp.message(Command('top'))
 async def cmd_top(message: types.Message):
@@ -238,5 +261,8 @@ async def passive_income():
         save_users()
         await asyncio.sleep(1)
 
+async def main():
+    await dp.start_polling(bot)
+
 if __name__ == '__main__':
-    asyncio.run(dp.start_polling(bot))
+    asyncio.run(main())

@@ -106,5 +106,15 @@ def upgrade_passive():
     result = db.upgrade_passive(user_id)
     return jsonify(result)
 
+@app.route('/api/passive_income', methods=['POST'])
+def passive_income():
+    data = request.json
+    user_id = data.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'No user_id provided'}), 400
+    
+    result = db.passive_income(user_id)
+    return jsonify(result)
+
 if __name__ == '__main__':
     app.run(debug=True) 

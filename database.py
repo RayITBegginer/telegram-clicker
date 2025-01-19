@@ -217,7 +217,7 @@ class Database:
 
     def upgrade_click(self, user_id):
         user = self.get_user_stats(user_id)
-        cost = 50 * (user['click_power'])  # Уменьшили базовую цену
+        cost = int(50 * (1.5 ** (user['click_power'] - 1)))  # Геометрическая прогрессия
         
         if user['clicks'] >= cost:
             user['clicks'] -= cost
@@ -228,11 +228,18 @@ class Database:
 
     def upgrade_passive(self, user_id):
         user = self.get_user_stats(user_id)
-        cost = 100 * (user['passive_income'] + 1)  # Уменьшили базовую цену
+        cost = int(100 * (1.5 ** user['passive_income']))  # Геометрическая прогрессия
         
         if user['clicks'] >= cost:
             user['clicks'] -= cost
             user['passive_income'] += 1
             self.save()
             return user
-        return None 
+        return None
+
+    def passive_income(self, user_id):
+        user = self.get_user_stats(user_id)
+        if user['passive_income'] > 0:
+            user['clicks'] += user['passive_income']
+            self.save()
+        return user 
