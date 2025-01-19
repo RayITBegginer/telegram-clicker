@@ -185,17 +185,17 @@
             
             try {
                 while (clickQueue.length > 0) {
-                    // Берем все клики из очереди
                     const clicks = clickQueue.length;
                     clickQueue = [];
                     
-                    // Временно обновляем значение
-                    const currentClicks = parseInt(clicksElement.textContent);
-                    const clickPower = parseInt(clickPowerElement.textContent);
+                    // Безопасное преобразование в число
+                    const currentClicks = parseInt(clicksElement.textContent) || 0;
+                    const clickPower = parseInt(clickPowerElement.textContent) || 1;
                     const newClicks = currentClicks + (clickPower * clicks);
-                    clicksElement.textContent = newClicks;
                     
-                    // Отправляем на сервер
+                    // Проверка на NaN
+                    clicksElement.textContent = isNaN(newClicks) ? currentClicks : newClicks;
+                    
                     const data = await sendAction('click');
                     if (data) {
                         updateStats(data);
@@ -205,7 +205,6 @@
                 console.error('Error processing clicks:', error);
             } finally {
                 isProcessing = false;
-                // Проверяем, не появились ли новые клики во время обработки
                 if (clickQueue.length > 0) {
                     processClickQueue();
                 }
@@ -224,22 +223,27 @@
         function updateStats(data) {
             if (!data) return;
             
-            clicksElement.textContent = data.clicks;
-            clickPowerElement.textContent = data.click_power;
-            passiveIncomeElement.textContent = data.passive_income;
+            // Безопасное обновление значений с проверкой на NaN
+            clicksElement.textContent = data.clicks || 0;
+            clickPowerElement.textContent = data.click_power || 1;
+            passiveIncomeElement.textContent = data.passive_income || 0;
             
-            // Обновляем цены апгрейдов
-            document.getElementById('click-cost').textContent = 
-                Math.floor(50 * Math.pow(1.5, data.click_power - 1));
-            document.getElementById('passive-cost').textContent = 
-                Math.floor(100 * Math.pow(1.5, data.passive_income));
+            // Безопасный расчет цен апгрейдов
+            const clickPower = parseInt(data.click_power) || 1;
+            const passiveIncome = parseInt(data.passive_income) || 0;
+            
+            const clickCost = Math.floor(50 * Math.pow(1.5, clickPower - 1));
+            const passiveCost = Math.floor(100 * Math.pow(1.5, passiveIncome));
+            
+            document.getElementById('click-cost').textContent = isNaN(clickCost) ? 50 : clickCost;
+            document.getElementById('passive-cost').textContent = isNaN(passiveCost) ? 100 : passiveCost;
             
             // Обновляем инвентарь
             const petsGrid = document.getElementById('equipped-pets');
             if (petsGrid) {
                 petsGrid.innerHTML = '';
                 
-                if (data.inventory && data.inventory.length > 0) {
+                if (data.inventory && Array.isArray(data.inventory) && data.inventory.length > 0) {
                     data.inventory.forEach(pet => {
                         const petCard = document.createElement('div');
                         petCard.className = 'pet-card';
@@ -260,7 +264,9 @@
             try {
                 const response = await fetch(`/api/stats?user_id=${userId}`);
                 const data = await response.json();
-                updateStats(data);
+                if (data) {
+                    updateStats(data);
+                }
             } catch (error) {
                 console.error('Error loading stats:', error);
             }
