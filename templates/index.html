@@ -107,33 +107,58 @@
         }
 
         clickButton.addEventListener('click', async () => {
-            const data = await sendAction('click');
-            updateStats(data);
+            const currentClicks = parseInt(clicksElement.textContent);
+            const clickPower = parseInt(clickPowerElement.textContent);
+            clicksElement.textContent = currentClicks + clickPower;
+            
+            try {
+                const data = await sendAction('click');
+                updateStats(data);
+            } catch (error) {
+                clicksElement.textContent = currentClicks;
+                console.error('Error clicking:', error);
+            }
         });
 
         document.getElementById('upgrade-click').addEventListener('click', async () => {
-            try {
-                const data = await sendAction('upgrade_click');
-                if (data) {
-                    updateStats(data);
-                } else {
-                    alert('Недостаточно кликов!');
+            const currentClicks = parseInt(clicksElement.textContent);
+            const cost = parseInt(document.getElementById('click-cost').textContent);
+            
+            if (currentClicks >= cost) {
+                clicksElement.textContent = currentClicks - cost;
+                clickPowerElement.textContent = parseInt(clickPowerElement.textContent) + 1;
+                
+                try {
+                    const data = await sendAction('upgrade_click');
+                    if (data) {
+                        updateStats(data);
+                    }
+                } catch (error) {
+                    console.error('Error upgrading click:', error);
                 }
-            } catch (error) {
-                console.error('Error upgrading click:', error);
+            } else {
+                alert('Недостаточно кликов!');
             }
         });
 
         document.getElementById('upgrade-passive').addEventListener('click', async () => {
-            try {
-                const data = await sendAction('upgrade_passive');
-                if (data) {
-                    updateStats(data);
-                } else {
-                    alert('Недостаточно кликов!');
+            const currentClicks = parseInt(clicksElement.textContent);
+            const cost = parseInt(document.getElementById('passive-cost').textContent);
+            
+            if (currentClicks >= cost) {
+                clicksElement.textContent = currentClicks - cost;
+                passiveIncomeElement.textContent = parseInt(passiveIncomeElement.textContent) + 1;
+                
+                try {
+                    const data = await sendAction('upgrade_passive');
+                    if (data) {
+                        updateStats(data);
+                    }
+                } catch (error) {
+                    console.error('Error upgrading passive:', error);
                 }
-            } catch (error) {
-                console.error('Error upgrading passive:', error);
+            } else {
+                alert('Недостаточно кликов!');
             }
         });
 
@@ -192,7 +217,11 @@
         }
 
         setInterval(async () => {
-            if (parseInt(passiveIncomeElement.textContent) > 0) {
+            const passiveIncome = parseInt(passiveIncomeElement.textContent);
+            if (passiveIncome > 0) {
+                const currentClicks = parseInt(clicksElement.textContent);
+                clicksElement.textContent = currentClicks + passiveIncome;
+                
                 try {
                     const data = await sendAction('passive_income');
                     updateStats(data);
