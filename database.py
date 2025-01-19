@@ -106,7 +106,6 @@ class Database:
         return self.users[str_id]
 
     def click(self, user_id):
-        """Обработка клика"""
         user = self.get_user_stats(user_id)
         
         # Подсчет силы клика с учетом питомцев
@@ -115,20 +114,10 @@ class Database:
             if pet in PETS:
                 click_power += PETS[pet]['click_power']
         
-        # Начисляем клики
         user['clicks'] += click_power
         user['achievements']['clicks_made'] += 1
-        
-        # Сохраняем изменения
         self.save()
-        
-        return {
-            'clicks': user['clicks'],
-            'click_power': user['click_power'],
-            'passive_income': user['passive_income'],
-            'inventory': user.get('inventory', []),
-            'equipped_pets': user.get('equipped_pets', [])
-        }
+        return user
 
     def buy_box(self, user_id):
         user = self.get_user_stats(user_id)
@@ -228,7 +217,7 @@ class Database:
 
     def upgrade_click(self, user_id):
         user = self.get_user_stats(user_id)
-        cost = int(50 * (1.5 ** (user['click_power'] - 1)))  # Геометрическая прогрессия
+        cost = int(50 * (1.5 ** (user['click_power'] - 1)))
         
         if user['clicks'] >= cost:
             user['clicks'] -= cost
@@ -239,7 +228,7 @@ class Database:
 
     def upgrade_passive(self, user_id):
         user = self.get_user_stats(user_id)
-        cost = int(100 * (1.5 ** user['passive_income']))  # Геометрическая прогрессия
+        cost = int(100 * (1.5 ** user['passive_income']))
         
         if user['clicks'] >= cost:
             user['clicks'] -= cost

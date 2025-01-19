@@ -22,12 +22,8 @@ def click():
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
     
-    try:
-        result = db.click(user_id)
-        return jsonify(result)
-    except Exception as e:
-        app.logger.error(f'Error processing click: {e}')
-        return jsonify({'error': str(e)}), 500
+    result = db.click(user_id)
+    return jsonify(result)
 
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
