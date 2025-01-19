@@ -7,11 +7,13 @@ import os
 from dotenv import load_dotenv
 from keyboards import get_webapp_keyboard
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
+from database import Database
 
 load_dotenv()
 
 bot = Bot(token=os.getenv('BOT_TOKEN'))
 dp = Dispatcher()
+db = Database()
 
 # Загрузка данных пользователей
 try:
@@ -56,7 +58,11 @@ def create_user(user_id):
 @dp.message(Command('start'))
 async def cmd_start(message: types.Message):
     user_id = message.from_user.id
-    create_user(user_id)
+    
+    # Создаем пользователя, если его нет
+    user = db.get_user_stats(user_id)
+    if not user:
+        user = db.create_user(user_id)
     
     # Добавляем user_id в URL
     webapp_url = f"{os.getenv('WEBAPP_URL')}?user_id={user_id}"
@@ -123,35 +129,19 @@ async def cmd_box(message: types.Message):
 
 @dp.message(Command('inventory'))
 async def cmd_inventory(message: types.Message):
-    user_id = str(message.from_user.id)
-    create_user(user_id)
+    user_id = message.from_user.id
+    user = db.get_user_stats(user_id)
     
-    if not users[user_id]['inventory']:
-        await message.answer("У вас нет питомцев! Используйте /box чтобы получить питомца.")
+    if not user or not user.get('inventory'):
+        await message.answer("У вас пока нет питомцев!")
         return
     
-    # Считаем количество каждого питомца
-    pet_counts = {}
-    for pet_type in users[user_id]['inventory']:
-        pet_counts[pet_type] = pet_counts.get(pet_type, 0) + 1
+    pets_text = "Ваши питомцы:\n"
+    for pet in user['inventory']:
+        pet_info = pets[pet]
+        pets_text += f"• {pet_info['name']} (Сила: +{pet_info['click_power']})\n"
     
-    # Формируем список питомцев
-    inventory_list = []
-    for i, (pet_type, count) in enumerate(pet_counts.items(), 1):
-        status = "🟢" if pet_type in users[user_id]['equipped_pets'] else "⚪"
-        inventory_list.append(
-            f"{status} {i}. {pets[pet_type]['name']} (x{count})\n"
-            f"└ Клик: +{pets[pet_type]['click_power']}, "
-            f"Пассив: +{pets[pet_type]['passive_income']}"
-        )
-    
-    await message.answer(
-        f"Ваши питомцы:\n\n"
-        f"{chr(10).join(inventory_list)}\n\n"
-        f"Команды:\n"
-        f"/equip [номер] - экипировать питомца\n"
-        f"/unequip [номер] - снять питомца"
-    )
+    await message.answer(pets_text)
 
 @dp.message(Command('equip'))
 async def cmd_equip(message: types.Message):
@@ -198,29 +188,44 @@ async def cmd_unequip(message: types.Message):
 
 @dp.message(Command('stats'))
 async def cmd_stats(message: types.Message):
-    user_id = str(message.from_user.id)
-    create_user(user_id)
+    user_id = message.from_user.id
+    user = db.get_user_stats(user_id)
     
-    stats = users[user_id]
+    if not user:
+        await message.answer("Статистика не найдена!")
+        return
     
-    # Подсчет общей силы клика и пассивного дохода
-    total_click_power = stats['click_power']
-    total_passive_income = stats['passive_income']
-    
-    for pet_type in stats['equipped_pets']:
-        total_click_power += pets[pet_type]['click_power']
-        total_passive_income += pets[pet_type]['passive_income']
-    
-    # Формируем список питомцев
-    pets_list = "\n".join([f"- {pets[pet]['name']}" for pet in stats['equipped_pets']]) if stats['equipped_pets'] else "Нет питомцев"
-    
-    await message.answer(
-        f"Ваша статистика:\n"
-        f"Клики: {stats['clicks']}\n"
-        f"Общая сила клика: {total_click_power}\n"
-        f"Общий пассивный доход: {total_passive_income}/сек\n"
-        f"\nЭкипированные питомцы:\n{pets_list}"
+    stats_text = (
+        f"📊 Ваша статистика:\n"
+        f"💰 Кликов: {user['clicks']}\n"
+        f"💪 Сила клика: {user['click_power']}\n"
+        f"⚡️ Пассивный доход: {user['passive_income']}/сек\n"
+        f"🐾 Питомцев: {len(user.get('inventory', []))}"
     )
+    
+    await message.answer(stats_text)
+
+@dp.message(Command('top'))
+async def cmd_top(message: types.Message):
+    leaderboard = db.get_leaderboard(limit=10)  # Получаем топ-10 игроков
+    
+    if not leaderboard:
+        await message.answer("Пока никто не играл! Будьте первым! 🎮")
+        return
+    
+    text = "🏆 Топ-10 игроков:\n\n"
+    for i, player in enumerate(leaderboard, 1):
+        # Добавляем эмодзи для первых трех мест
+        medal = {1: '🥇', 2: '🥈', 3: '🥉'}.get(i, '•')
+        
+        text += (
+            f"{medal} {i}. ID: {player['user_id']}\n"
+            f"   💰 Баланс: {player['clicks']}\n"
+            f"   💪 Сила клика: {player['click_power']}\n"
+            f"   🐾 Питомцев: {player['pets_count']}\n\n"
+        )
+    
+    await message.answer(text)
 
 # Пассивный доход
 async def passive_income():
