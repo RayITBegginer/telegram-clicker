@@ -86,5 +86,25 @@ def get_leaderboard():
         app.logger.error(f'Ошибка при получении таблицы лидеров: {e}')
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/upgrade_click', methods=['POST'])
+def upgrade_click():
+    data = request.json
+    user_id = data.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'No user_id provided'}), 400
+    
+    result = db.upgrade_click(user_id)
+    return jsonify(result)
+
+@app.route('/api/upgrade_passive', methods=['POST'])
+def upgrade_passive():
+    data = request.json
+    user_id = data.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'No user_id provided'}), 400
+    
+    result = db.upgrade_passive(user_id)
+    return jsonify(result)
+
 if __name__ == '__main__':
     app.run(debug=True) 

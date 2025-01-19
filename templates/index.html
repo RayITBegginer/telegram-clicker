@@ -117,6 +117,11 @@
         <button class="click-button" id="click-button">Клик!</button>
         <button class="click-button" id="box-button">Открыть бокс (500 кликов)</button>
 
+        <div class="upgrades">
+            <button class="click-button" id="upgrade-click">Улучшить клик (100 💰)</button>
+            <button class="click-button" id="upgrade-passive">Улучшить доход (200 💰)</button>
+        </div>
+
         <div class="leaderboard">
             <h3>🏆 Топ 50 игроков</h3>
             <div class="table-container">
@@ -137,9 +142,13 @@
             </div>
         </div>
 
-        <div class="pets">
-            <h3>Питомцы</h3>
-            <div id="equipped-pets"></div>
+        <div class="inventory">
+            <h3>🎁 Инвентарь</h3>
+            <button class="click-button" id="box-button">Открыть бокс (500 💰)</button>
+            <div class="pets">
+                <h4>Питомцы:</h4>
+                <div id="equipped-pets"></div>
+            </div>
         </div>
     </div>
 
@@ -213,22 +222,52 @@
 
         // Обработка клика
         clickButton.addEventListener('click', async () => {
+            // Временно обновляем значение до ответа сервера
+            const currentClicks = parseInt(clicksElement.textContent);
+            const clickPower = parseInt(clickPowerElement.textContent);
+            clicksElement.textContent = currentClicks + clickPower;
+
             try {
                 const data = await sendAction('click');
                 updateStats(data);
             } catch (error) {
+                // Если ошибка, возвращаем старое значение
+                clicksElement.textContent = currentClicks;
                 console.error('Error clicking:', error);
             }
         });
 
+        // Обработка улучшения клика
+        document.getElementById('upgrade-click').addEventListener('click', async () => {
+            try {
+                const data = await sendAction('upgrade_click');
+                updateStats(data);
+            } catch (error) {
+                console.error('Error upgrading click:', error);
+            }
+        });
+
+        // Обработка улучшения пассивного дохода
+        document.getElementById('upgrade-passive').addEventListener('click', async () => {
+            try {
+                const data = await sendAction('upgrade_passive');
+                updateStats(data);
+            } catch (error) {
+                console.error('Error upgrading passive:', error);
+            }
+        });
+
         // Обработка открытия бокса
-        boxButton.addEventListener('click', async () => {
+        document.getElementById('box-button').addEventListener('click', async () => {
             try {
                 const data = await sendAction('box');
-                updateStats(data.user_stats);
-                alert(`Вы получили питомца: ${data.pet_info.name}!`);
+                if (data.pet_info) {
+                    alert(`Вы получили питомца: ${data.pet_info.name}!`);
+                    updateStats(data.user_stats);
+                }
             } catch (error) {
                 console.error('Error opening box:', error);
+                alert('Недостаточно кликов! Нужно 500');
             }
         });
 

@@ -209,4 +209,26 @@ class Database:
         # Сортируем по количеству кликов
         sorted_players = sorted(players, key=lambda x: x['clicks'], reverse=True)
         
-        return sorted_players[:limit] 
+        return sorted_players[:limit]
+
+    def upgrade_click(self, user_id):
+        user = self.get_user_stats(user_id)
+        cost = 100 * user['click_power']
+        
+        if user['clicks'] >= cost:
+            user['clicks'] -= cost
+            user['click_power'] += 1
+            self.save()
+            return user
+        return None
+
+    def upgrade_passive(self, user_id):
+        user = self.get_user_stats(user_id)
+        cost = 200 * (user['passive_income'] + 1)
+        
+        if user['clicks'] >= cost:
+            user['clicks'] -= cost
+            user['passive_income'] += 1
+            self.save()
+            return user
+        return None 
