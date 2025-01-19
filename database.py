@@ -15,21 +15,27 @@ class Database:
                 # Преобразуем обратно в рабочий формат
                 self.users = {}
                 for user_id, formatted_user in formatted_data.items():
-                    self.users[user_id] = {
-                        'clicks': formatted_user['Основная информация']['Всего кликов'],
-                        'click_power': formatted_user['Основная информация']['Сила клика'],
-                        'passive_income': formatted_user['Основная информация']['Пассивный доход'],
-                        'last_save': formatted_user['Основная информация']['Последнее сохранение'],
-                        'equipped_pets': [pet_type for pet_type, pet_info in PETS.items() 
-                                       if pet_info['name'] in formatted_user['Питомцы']['Экипировано']],
-                        'inventory': [pet_type for pet_type, pet_info in PETS.items() 
-                                    if pet_info['name'] in formatted_user['Питомцы']['В инвентаре']],
-                        'achievements': {
-                            'clicks_made': formatted_user['Достижения']['Всего кликов сделано'],
-                            'boxes_opened': formatted_user['Достижения']['Боксов открыто'],
-                            'pets_collected': formatted_user['Достижения']['Питомцев получено']
+                    # Проверяем старый или новый формат данных
+                    if 'Основная информация' in formatted_user:
+                        # Новый формат
+                        self.users[user_id] = {
+                            'clicks': formatted_user['Основная информация']['Всего кликов'],
+                            'click_power': formatted_user['Основная информация']['Сила клика'],
+                            'passive_income': formatted_user['Основная информация']['Пассивный доход'],
+                            'last_save': formatted_user['Основная информация']['Последнее сохранение'],
+                            'equipped_pets': [pet_type for pet_type, pet_info in PETS.items() 
+                                           if pet_info['name'] in formatted_user['Питомцы']['Экипировано']],
+                            'inventory': [pet_type for pet_type, pet_info in PETS.items() 
+                                        if pet_info['name'] in formatted_user['Питомцы']['В инвентаре']],
+                            'achievements': {
+                                'clicks_made': formatted_user['Достижения']['Всего кликов сделано'],
+                                'boxes_opened': formatted_user['Достижения']['Боксов открыто'],
+                                'pets_collected': formatted_user['Достижения']['Питомцев получено']
+                            }
                         }
-                    }
+                    else:
+                        # Старый формат
+                        self.users[user_id] = formatted_user
         except FileNotFoundError:
             self.users = {}
 
