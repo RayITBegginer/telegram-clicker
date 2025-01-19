@@ -75,6 +75,7 @@
     </div>
 
     <script>
+        // Основные элементы
         const clickButton = document.getElementById('click-button');
         const clicksElement = document.getElementById('clicks');
         const clickPowerElement = document.getElementById('click-power');
@@ -82,14 +83,11 @@
         const inventoryButton = document.getElementById('toggle-inventory');
         const inventoryContainer = document.getElementById('inventory');
 
+        // Получаем user_id из URL
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('user_id');
 
-        if (!userId) {
-            document.body.innerHTML = '<div class="container"><h2>Ошибка: Откройте игру через Telegram бота!</h2></div>';
-            throw new Error('No user_id provided');
-        }
-
+        // Базовая функция отправки действий
         async function sendAction(action, data = {}) {
             try {
                 const response = await fetch(`/api/${action}`, {
@@ -104,24 +102,29 @@
             }
         }
 
-        clickButton.addEventListener('mousedown', () => {
+        // Обработка клика
+        clickButton.addEventListener('click', () => {
             const currentClicks = parseInt(clicksElement.textContent) || 0;
             const clickPower = parseInt(clickPowerElement.textContent) || 1;
+            
+            // Мгновенное обновление
             clicksElement.textContent = currentClicks + clickPower;
             
+            // Отправка на сервер без ожидания
             sendAction('click');
         });
 
+        // Улучшение клика
         document.getElementById('upgrade-click').addEventListener('click', () => {
             const currentClicks = parseInt(clicksElement.textContent) || 0;
-            const currentPower = parseInt(clickPowerElement.textContent) || 1;
-            const cost = Math.floor(50 * Math.pow(1.5, currentPower - 1));
+            const cost = parseInt(document.getElementById('click-cost').textContent) || 50;
             
             if (currentClicks >= cost) {
+                // Мгновенное обновление
                 clicksElement.textContent = currentClicks - cost;
-                clickPowerElement.textContent = currentPower + 1;
+                clickPowerElement.textContent = parseInt(clickPowerElement.textContent) + 1;
                 document.getElementById('click-cost').textContent = 
-                    Math.floor(50 * Math.pow(1.5, currentPower));
+                    Math.floor(50 * Math.pow(1.5, parseInt(clickPowerElement.textContent) - 1));
                 
                 sendAction('upgrade_click');
             } else {
@@ -129,16 +132,17 @@
             }
         });
 
+        // Улучшение пассивного дохода
         document.getElementById('upgrade-passive').addEventListener('click', () => {
             const currentClicks = parseInt(clicksElement.textContent) || 0;
-            const currentPassive = parseInt(passiveIncomeElement.textContent) || 0;
-            const cost = Math.floor(100 * Math.pow(1.5, currentPassive));
+            const cost = parseInt(document.getElementById('passive-cost').textContent) || 100;
             
             if (currentClicks >= cost) {
+                // Мгновенное обновление
                 clicksElement.textContent = currentClicks - cost;
-                passiveIncomeElement.textContent = currentPassive + 1;
+                passiveIncomeElement.textContent = parseInt(passiveIncomeElement.textContent) + 1;
                 document.getElementById('passive-cost').textContent = 
-                    Math.floor(100 * Math.pow(1.5, currentPassive + 1));
+                    Math.floor(100 * Math.pow(1.5, parseInt(passiveIncomeElement.textContent)));
                 
                 sendAction('upgrade_passive');
             } else {
@@ -146,14 +150,17 @@
             }
         });
 
+        // Открытие бокса
         document.getElementById('box-button').addEventListener('click', async () => {
             const currentClicks = parseInt(clicksElement.textContent) || 0;
+            
             if (currentClicks >= 500) {
+                // Мгновенное обновление
                 clicksElement.textContent = currentClicks - 500;
                 
                 const result = await sendAction('box');
-                if (result && result.pet_info) {
-                    alert(`Вы получили питомца: ${result.pet_info.name}!`);
+                if (result && result.success) {
+                    alert(`Вы получили питомца: ${result.pet_info.name}!\nБонус к клику: +${result.pet_info.click_power}\nБонус к пассивному доходу: +${result.pet_info.passive_power}\nРедкость: ${result.pet_info.rarity}`);
                     updateInventory(result.user_stats);
                 }
             } else {
@@ -161,10 +168,7 @@
             }
         });
 
-        inventoryButton.addEventListener('click', () => {
-            inventoryContainer.classList.toggle('active');
-        });
-
+        // Функции для питомцев
         function equipPet(pet) {
             const petCard = document.querySelector(`[data-pet="${pet}"]`);
             if (petCard) {
@@ -185,17 +189,7 @@
             sendAction('unequip_pet', { pet });
         }
 
-        function showPetInfo(pet) {
-            const petInfo = PETS[pet];
-            if (petInfo) {
-                alert(`
-                    Имя: ${petInfo.name}
-                    Бонус к клику: +${petInfo.click_power}
-                    Редкость: ${petInfo.rarity}
-                `);
-            }
-        }
-
+        // Обновление инвентаря
         function updateInventory(data) {
             if (!data || !data.inventory) return;
             
@@ -210,19 +204,35 @@
                 const isEquipped = data.equipped_pets && data.equipped_pets.includes(pet);
                 if (isEquipped) petCard.classList.add('equipped');
                 
-                petCard.innerHTML = `
-                    <div class="pet-info" onclick="showPetInfo('${pet}')">
-                        🐾 ${pet} ${isEquipped ? '(Экипирован)' : ''}
-                    </div>
-                    <button onclick="${isEquipped ? 'unequipPet' : 'equipPet'}('${pet}')">
-                        ${isEquipped ? 'Снять' : 'Экипировать'}
-                    </button>
-                `;
+                fetch('/api/pets')
+                    .then(response => response.json())
+                    .then(pets => {
+                        const petInfo = pets[pet];
+                        petCard.innerHTML = `
+                            <div class="pet-info">
+                                🐾 ${pet}
+                                <div class="pet-stats">
+                                    Бонус к клику: +${petInfo.click_power}
+                                    Бонус к доходу: +${petInfo.passive_power}
+                                    Редкость: ${petInfo.rarity}
+                                </div>
+                            </div>
+                            <button onclick="${isEquipped ? 'unequipPet' : 'equipPet'}('${pet}')">
+                                ${isEquipped ? 'Снять' : 'Экипировать'}
+                            </button>
+                        `;
+                    });
                 
                 petsElement.appendChild(petCard);
             });
         }
 
+        // Переключение инвентаря
+        inventoryButton.addEventListener('click', () => {
+            inventoryContainer.classList.toggle('active');
+        });
+
+        // Пассивный доход
         setInterval(() => {
             const passiveIncome = parseInt(passiveIncomeElement.textContent) || 0;
             if (passiveIncome > 0) {
@@ -232,6 +242,7 @@
             }
         }, 1000);
 
+        // Начальная загрузка
         async function loadStats() {
             const data = await sendAction('stats');
             if (data) {
@@ -248,6 +259,7 @@
             }
         }
 
+        // Загружаем статистику при старте
         loadStats();
     </script>
 </body>

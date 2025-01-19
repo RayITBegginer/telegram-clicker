@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, jsonify
-from database import Database
+from database import Database, PETS
 import os
 from dotenv import load_dotenv
 import logging
@@ -13,6 +13,9 @@ logging.basicConfig(level=logging.DEBUG)
 
 @app.route('/')
 def index():
+    user_id = request.args.get('user_id')
+    if not user_id:
+        return 'Требуется user_id'
     return render_template('index.html')
 
 @app.route('/api/click', methods=['POST'])
@@ -21,35 +24,23 @@ def click():
     user_id = data.get('user_id')
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
-    
-    result = db.click(user_id)
-    return jsonify(result)
+    return jsonify(db.click(user_id))
 
 @app.route('/api/stats', methods=['GET'])
 def get_stats():
     user_id = request.args.get('user_id')
-    
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
-    
-    # Получаем статистику пользователя
-    stats = db.get_user_stats(user_id)
-    return jsonify(stats)
+    return jsonify(db.get_user_stats(user_id))
 
 @app.route('/api/box', methods=['POST'])
 def open_box():
     data = request.json
     user_id = data.get('user_id')
-    
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
-    
-    # Открываем бокс
-    result = db.buy_box(user_id)
-    if not result:
-        return jsonify({'error': 'Not enough clicks'}), 400
-    
-    return jsonify(result)
+    result = db.open_box(user_id)
+    return jsonify(result if result else {'error': 'Недостаточно кликов'})
 
 @app.route('/api/save', methods=['POST'])
 def save_progress():
@@ -90,9 +81,8 @@ def upgrade_click():
     user_id = data.get('user_id')
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
-    
     result = db.upgrade_click(user_id)
-    return jsonify(result)
+    return jsonify(result if result else {'error': 'Недостаточно кликов'})
 
 @app.route('/api/upgrade_passive', methods=['POST'])
 def upgrade_passive():
@@ -100,9 +90,8 @@ def upgrade_passive():
     user_id = data.get('user_id')
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
-    
     result = db.upgrade_passive(user_id)
-    return jsonify(result)
+    return jsonify(result if result else {'error': 'Недостаточно кликов'})
 
 @app.route('/api/passive_income', methods=['POST'])
 def passive_income():
@@ -110,9 +99,32 @@ def passive_income():
     user_id = data.get('user_id')
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
-    
     result = db.passive_income(user_id)
-    return jsonify(result)
+    return jsonify(result if result else {'error': 'Нет пассивного дохода'})
+
+@app.route('/api/equip_pet', methods=['POST'])
+def equip_pet():
+    data = request.json
+    user_id = data.get('user_id')
+    pet = data.get('pet')
+    if not user_id or not pet:
+        return jsonify({'error': 'Invalid request'}), 400
+    result = db.equip_pet(user_id, pet)
+    return jsonify(result if result else {'error': 'Не удалось экипировать питомца'})
+
+@app.route('/api/unequip_pet', methods=['POST'])
+def unequip_pet():
+    data = request.json
+    user_id = data.get('user_id')
+    pet = data.get('pet')
+    if not user_id or not pet:
+        return jsonify({'error': 'Invalid request'}), 400
+    result = db.unequip_pet(user_id, pet)
+    return jsonify(result if result else {'error': 'Не удалось снять питомца'})
+
+@app.route('/api/pets')
+def get_pets():
+    return jsonify(PETS)
 
 if __name__ == '__main__':
-    app.run(debug=True) 
+    app.run(host='0.0.0.0', port=5000) 
