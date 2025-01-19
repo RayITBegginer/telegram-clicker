@@ -44,6 +44,29 @@
             background-color: var(--tg-theme-secondary-bg-color, #f5f5f5);
             border-radius: 10px;
         }
+        .pet-limit {
+            background-color: var(--tg-theme-secondary-bg-color, #eee);
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 8px;
+            text-align: center;
+            font-weight: bold;
+        }
+        button[disabled] {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .pet-card {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid var(--tg-theme-button-color, #50a8eb);
+            border-radius: 8px;
+        }
+        .pet-stats {
+            font-size: 0.9em;
+            color: var(--tg-theme-hint-color, #999);
+            margin-top: 5px;
+        }
     </style>
 </head>
 <body>
@@ -71,6 +94,12 @@
         <div class="leaderboard">
             <h3>Таблица лидеров</h3>
             <div id="leaderboard-body"></div>
+        </div>
+
+        <div class="stats-container">
+            <div class="pet-limit">
+                Питомцев экипировано: <span id="equipped-count">0</span>/<span id="max-pets">2</span>
+            </div>
         </div>
     </div>
 
@@ -194,7 +223,11 @@
             if (!data || !data.inventory) return;
             
             const petsElement = document.getElementById('equipped-pets');
+            const equippedCount = document.getElementById('equipped-count');
             petsElement.innerHTML = '';
+            
+            // Обновляем счетчик питомцев
+            equippedCount.textContent = data.equipped_pets ? data.equipped_pets.length : 0;
             
             data.inventory.forEach(pet => {
                 const petCard = document.createElement('div');
@@ -212,12 +245,13 @@
                             <div class="pet-info">
                                 🐾 ${pet}
                                 <div class="pet-stats">
-                                    Бонус к клику: +${petInfo.click_power}
-                                    Бонус к доходу: +${petInfo.passive_power}
+                                    Множитель клика: x${petInfo.click_multiplier}
+                                    Множитель дохода: x${petInfo.passive_multiplier}
                                     Редкость: ${petInfo.rarity}
                                 </div>
                             </div>
-                            <button onclick="${isEquipped ? 'unequipPet' : 'equipPet'}('${pet}')">
+                            <button onclick="${isEquipped ? 'unequipPet' : 'equipPet'}('${pet}')"
+                                    ${!isEquipped && data.equipped_pets && data.equipped_pets.length >= 2 ? 'disabled' : ''}>
                                 ${isEquipped ? 'Снять' : 'Экипировать'}
                             </button>
                         `;

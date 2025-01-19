@@ -6,13 +6,15 @@ import random
 from typing import Dict, Any
 
 PETS = {
-    'Котенок': {'name': 'Котенок', 'click_power': 1, 'passive_power': 0, 'rarity': 'Обычный'},
-    'Щенок': {'name': 'Щенок', 'click_power': 1, 'passive_power': 1, 'rarity': 'Обычный'},
-    'Хомяк': {'name': 'Хомяк', 'click_power': 2, 'passive_power': 1, 'rarity': 'Редкий'},
-    'Попугай': {'name': 'Попугай', 'click_power': 2, 'passive_power': 2, 'rarity': 'Редкий'},
-    'Единорог': {'name': 'Единорог', 'click_power': 3, 'passive_power': 3, 'rarity': 'Эпический'},
-    'Дракон': {'name': 'Дракон', 'click_power': 5, 'passive_power': 5, 'rarity': 'Легендарный'}
+    'Котенок': {'name': 'Котенок', 'click_multiplier': 1.2, 'passive_multiplier': 1.1, 'rarity': 'Обычный'},
+    'Щенок': {'name': 'Щенок', 'click_multiplier': 1.2, 'passive_multiplier': 1.2, 'rarity': 'Обычный'},
+    'Хомяк': {'name': 'Хомяк', 'click_multiplier': 1.5, 'passive_multiplier': 1.3, 'rarity': 'Редкий'},
+    'Попугай': {'name': 'Попугай', 'click_multiplier': 1.5, 'passive_multiplier': 1.5, 'rarity': 'Редкий'},
+    'Единорог': {'name': 'Единорог', 'click_multiplier': 2.0, 'passive_multiplier': 1.8, 'rarity': 'Эпический'},
+    'Дракон': {'name': 'Дракон', 'click_multiplier': 3.0, 'passive_multiplier': 2.0, 'rarity': 'Легендарный'}
 }
+
+MAX_EQUIPPED_PETS = 2
 
 class Database:
     def __init__(self, filename: str = 'database.json'):
@@ -62,16 +64,19 @@ class Database:
         return self.users[user_id]
 
     def calculate_total_power(self, user: Dict) -> tuple:
-        """Подсчет общей силы клика и пассивного дохода с учетом питомцев"""
-        total_click = user['click_power']
-        total_passive = user['passive_income']
+        """Подсчет общей силы клика и пассивного дохода с множителями от питомцев"""
+        base_click = user['click_power']
+        base_passive = user['passive_income']
         
-        for pet in user['equipped_pets']:
+        click_multiplier = 1.0
+        passive_multiplier = 1.0
+        
+        for pet in user['equipped_pets'][:MAX_EQUIPPED_PETS]:  # Ограничение в 2 питомца
             if pet in PETS:
-                total_click += PETS[pet]['click_power']
-                total_passive += PETS[pet]['passive_power']
+                click_multiplier *= PETS[pet]['click_multiplier']
+                passive_multiplier *= PETS[pet]['passive_multiplier']
         
-        return total_click, total_passive
+        return int(base_click * click_multiplier), int(base_passive * passive_multiplier)
 
     def click(self, user_id: str) -> Dict[str, Any]:
         """Обработка клика с учетом питомцев"""
@@ -145,22 +150,24 @@ class Database:
         return {'success': False, 'error': 'Недостаточно кликов'}
 
     def equip_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
-        """Экипировка питомца"""
+        """Экипировка питомца с ограничением"""
         user = self.get_user_stats(user_id)
         
         if pet in user['inventory'] and pet not in user['equipped_pets']:
-            user['equipped_pets'].append(pet)
-            self.save()
-            
-            total_click, total_passive = self.calculate_total_power(user)
-            
-            return {
-                'clicks': user['clicks'],
-                'click_power': total_click,
-                'passive_income': total_passive,
-                'inventory': user['inventory'],
-                'equipped_pets': user['equipped_pets']
-            }
+            if len(user['equipped_pets']) < MAX_EQUIPPED_PETS:
+                user['equipped_pets'].append(pet)
+                self.save()
+                
+                total_click, total_passive = self.calculate_total_power(user)
+                
+                return {
+                    'clicks': user['clicks'],
+                    'click_power': total_click,
+                    'passive_income': total_passive,
+                    'inventory': user['inventory'],
+                    'equipped_pets': user['equipped_pets'],
+                    'max_pets': MAX_EQUIPPED_PETS
+                }
         return None
 
     def unequip_pet(self, user_id: str, pet: str) -> Dict[str, Any]:

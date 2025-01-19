@@ -1,8 +1,9 @@
 from flask import Flask, render_template, request, jsonify
-from database import Database, PETS
+from database import Database, PETS, MAX_EQUIPPED_PETS
 import os
 from dotenv import load_dotenv
 import logging
+import json
 
 load_dotenv()
 app = Flask(__name__)
@@ -11,11 +12,20 @@ db = Database()
 # Добавляем логирование
 logging.basicConfig(level=logging.DEBUG)
 
+# Проверяем существование базы данных при запуске
+@app.before_first_request
+def init_db():
+    if not os.path.exists('database.json'):
+        with open('database.json', 'w', encoding='utf-8') as f:
+            json.dump({}, f)
+
 @app.route('/')
 def index():
     user_id = request.args.get('user_id')
     if not user_id:
         return 'Требуется user_id'
+    # Загружаем или создаем данные пользователя
+    db.get_user_stats(user_id)
     return render_template('index.html')
 
 @app.route('/api/click', methods=['POST'])
@@ -24,14 +34,20 @@ def click():
     user_id = data.get('user_id')
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
-    return jsonify(db.click(user_id))
+    result = db.click(user_id)
+    # Сохраняем после каждого действия
+    db.save()
+    return jsonify(result)
 
-@app.route('/api/stats', methods=['GET'])
+@app.route('/api/stats', methods=['POST', 'GET'])
 def get_stats():
-    user_id = request.args.get('user_id')
+    user_id = request.args.get('user_id') or request.json.get('user_id')
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
-    return jsonify(db.get_user_stats(user_id))
+    stats = db.get_user_stats(user_id)
+    # Добавляем информацию о лимите питомцев
+    stats['max_pets'] = MAX_EQUIPPED_PETS
+    return jsonify(stats)
 
 @app.route('/api/box', methods=['POST'])
 def open_box():
@@ -40,7 +56,11 @@ def open_box():
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
     result = db.open_box(user_id)
-    return jsonify(result if result else {'error': 'Недостаточно кликов'})
+    if result:
+        # Сохраняем после получения питомца
+        db.save()
+        return jsonify(result)
+    return jsonify({'error': 'Недостаточно кликов'})
 
 @app.route('/api/save', methods=['POST'])
 def save_progress():
@@ -82,7 +102,11 @@ def upgrade_click():
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
     result = db.upgrade_click(user_id)
-    return jsonify(result if result else {'error': 'Недостаточно кликов'})
+    if result:
+        # Сохраняем после успешного улучшения
+        db.save()
+        return jsonify(result)
+    return jsonify({'error': 'Недостаточно кликов'})
 
 @app.route('/api/upgrade_passive', methods=['POST'])
 def upgrade_passive():
@@ -91,7 +115,11 @@ def upgrade_passive():
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
     result = db.upgrade_passive(user_id)
-    return jsonify(result if result else {'error': 'Недостаточно кликов'})
+    if result:
+        # Сохраняем после успешного улучшения
+        db.save()
+        return jsonify(result)
+    return jsonify({'error': 'Недостаточно кликов'})
 
 @app.route('/api/passive_income', methods=['POST'])
 def passive_income():
@@ -100,7 +128,11 @@ def passive_income():
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
     result = db.passive_income(user_id)
-    return jsonify(result if result else {'error': 'Нет пассивного дохода'})
+    if result:
+        # Сохраняем после начисления
+        db.save()
+        return jsonify(result)
+    return jsonify({'error': 'Нет пассивного дохода'})
 
 @app.route('/api/equip_pet', methods=['POST'])
 def equip_pet():
@@ -110,7 +142,11 @@ def equip_pet():
     if not user_id or not pet:
         return jsonify({'error': 'Invalid request'}), 400
     result = db.equip_pet(user_id, pet)
-    return jsonify(result if result else {'error': 'Не удалось экипировать питомца'})
+    if result:
+        # Сохраняем после экипировки
+        db.save()
+        return jsonify(result)
+    return jsonify({'error': 'Не удалось экипировать питомца'})
 
 @app.route('/api/unequip_pet', methods=['POST'])
 def unequip_pet():
@@ -120,7 +156,11 @@ def unequip_pet():
     if not user_id or not pet:
         return jsonify({'error': 'Invalid request'}), 400
     result = db.unequip_pet(user_id, pet)
-    return jsonify(result if result else {'error': 'Не удалось снять питомца'})
+    if result:
+        # Сохраняем после снятия
+        db.save()
+        return jsonify(result)
+    return jsonify({'error': 'Не удалось снять питомца'})
 
 @app.route('/api/pets')
 def get_pets():
