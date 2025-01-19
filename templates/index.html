@@ -123,8 +123,8 @@
         });
 
         document.getElementById('upgrade-click').addEventListener('click', async () => {
-            const currentClicks = parseInt(clicksElement.textContent);
-            const cost = parseInt(document.getElementById('click-cost').textContent);
+            const currentClicks = parseInt(clicksElement.textContent) || 0;
+            const cost = parseInt(document.getElementById('click-cost').textContent) || 50;
             
             if (currentClicks >= cost) {
                 clicksElement.textContent = currentClicks - cost;
@@ -144,8 +144,8 @@
         });
 
         document.getElementById('upgrade-passive').addEventListener('click', async () => {
-            const currentClicks = parseInt(clicksElement.textContent);
-            const cost = parseInt(document.getElementById('passive-cost').textContent);
+            const currentClicks = parseInt(clicksElement.textContent) || 0;
+            const cost = parseInt(document.getElementById('passive-cost').textContent) || 100;
             
             if (currentClicks >= cost) {
                 clicksElement.textContent = currentClicks - cost;
@@ -165,16 +165,23 @@
         });
 
         document.getElementById('box-button').addEventListener('click', async () => {
-            try {
-                const data = await sendAction('box');
-                if (data && data.pet_info) {
-                    alert(`Вы получили питомца: ${data.pet_info.name}!`);
-                    updateStats(data.user_stats);
-                } else {
-                    alert('Недостаточно кликов! Нужно 500');
+            const currentClicks = parseInt(clicksElement.textContent) || 0;
+            const BOX_COST = 500;
+            
+            if (currentClicks >= BOX_COST) {
+                clicksElement.textContent = currentClicks - BOX_COST;
+                
+                try {
+                    const data = await sendAction('box');
+                    if (data && data.pet_info) {
+                        alert(`Вы получили питомца: ${data.pet_info.name}!`);
+                        updateStats(data.user_stats);
+                    }
+                } catch (error) {
+                    console.error('Error opening box:', error);
                 }
-            } catch (error) {
-                console.error('Error opening box:', error);
+            } else {
+                alert('Недостаточно кликов! Нужно 500');
             }
         });
 
@@ -199,12 +206,72 @@
             
             if (data.inventory && data.inventory.length > 0) {
                 data.inventory.forEach(pet => {
-                    const petElement = document.createElement('div');
-                    petElement.textContent = `🐾 ${pet}`;
-                    petsElement.appendChild(petElement);
+                    const petCard = document.createElement('div');
+                    petCard.className = 'pet-card';
+                    petCard.innerHTML = `
+                        <div class="pet-info">🐾 ${pet}</div>
+                        <button class="equip-button" onclick="equipPet('${pet}')">Экипировать</button>
+                    `;
+                    
+                    petCard.querySelector('.pet-info').addEventListener('click', () => {
+                        showPetInfo(pet);
+                    });
+                    
+                    petsElement.appendChild(petCard);
                 });
             } else {
                 petsElement.innerHTML = '<p>Нет питомцев</p>';
+            }
+            
+            if (data.equipped_pets && data.equipped_pets.length > 0) {
+                const equippedDiv = document.createElement('div');
+                equippedDiv.className = 'equipped-pets';
+                equippedDiv.innerHTML = '<h4>Экипированные питомцы:</h4>';
+                
+                data.equipped_pets.forEach(pet => {
+                    const petDiv = document.createElement('div');
+                    petDiv.className = 'equipped-pet';
+                    petDiv.innerHTML = `
+                        <div class="pet-info">🐾 ${pet}</div>
+                        <button class="unequip-button" onclick="unequipPet('${pet}')">Снять</button>
+                    `;
+                    equippedDiv.appendChild(petDiv);
+                });
+                
+                petsElement.insertBefore(equippedDiv, petsElement.firstChild);
+            }
+        }
+
+        async function equipPet(pet) {
+            try {
+                const data = await sendAction('equip_pet', { pet: pet });
+                if (data) {
+                    updateStats(data);
+                }
+            } catch (error) {
+                console.error('Error equipping pet:', error);
+            }
+        }
+
+        async function unequipPet(pet) {
+            try {
+                const data = await sendAction('unequip_pet', { pet: pet });
+                if (data) {
+                    updateStats(data);
+                }
+            } catch (error) {
+                console.error('Error unequipping pet:', error);
+            }
+        }
+
+        function showPetInfo(pet) {
+            const petInfo = PETS[pet];
+            if (petInfo) {
+                alert(`
+                    Имя: ${petInfo.name}
+                    Бонус к клику: +${petInfo.click_power}
+                    Редкость: ${petInfo.rarity}
+                `);
             }
         }
 

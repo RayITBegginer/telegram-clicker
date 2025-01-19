@@ -40,6 +40,16 @@ box_chances = {
 
 BOX_COST = 500
 
+# Константы для питомцев
+PETS = {
+    'Котенок': {'name': 'Котенок', 'click_power': 1, 'rarity': 'Обычный'},
+    'Щенок': {'name': 'Щенок', 'click_power': 1, 'rarity': 'Обычный'},
+    'Хомяк': {'name': 'Хомяк', 'click_power': 2, 'rarity': 'Редкий'},
+    'Попугай': {'name': 'Попугай', 'click_power': 2, 'rarity': 'Редкий'},
+    'Единорог': {'name': 'Единорог', 'click_power': 3, 'rarity': 'Эпический'},
+    'Дракон': {'name': 'Дракон', 'click_power': 5, 'rarity': 'Легендарный'}
+}
+
 def save_users():
     with open('users.json', 'w') as f:
         json.dump(users, f)
@@ -218,7 +228,8 @@ async def cmd_stats(message: types.Message):
             f"💰 Клики: {user['clicks']}\n"
             f"💪 Сила клика: {user['click_power']}\n"
             f"⚡️ Пассивный доход: {user['passive_income']}/сек\n"
-            f"🐾 Питомцев: {len(user['inventory'])}\n\n"
+            f"🐾 Питомцев: {len(user['inventory'])}\n"
+            f"👥 Экипировано: {len(user['equipped_pets'])}\n\n"
             f"🏆 Достижения:\n"
             f"👆 Всего кликов: {user['achievements']['clicks_made']}\n"
             f"📦 Боксов открыто: {user['achievements']['boxes_opened']}\n"
