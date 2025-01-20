@@ -21,19 +21,21 @@ class Database:
     def __init__(self):
         """Инициализация базы данных с проверкой файла"""
         self.filename = 'database.json'
-        if not os.path.exists(self.filename):
-            self.users = {}
-            self.save()
-        else:
-            self.load()
+        self.users = {}
+        self.load()  # Загружаем существующие данные при старте
 
     def load(self):
         """Загрузка базы данных"""
         try:
-            with open(self.filename, 'r', encoding='utf-8') as f:
-                self.users = json.load(f)
-        except:
-            self.users = {}
+            if os.path.exists(self.filename):
+                with open(self.filename, 'r', encoding='utf-8') as f:
+                    self.users = json.load(f)
+            else:
+                # Если файла нет, создаем его
+                self.save()
+        except Exception as e:
+            print(f"Error loading database: {e}")
+            # В случае ошибки создаем новый файл
             self.save()
 
     def save(self):
@@ -52,33 +54,19 @@ class Database:
             return False
 
     def get_user_stats(self, user_id: str) -> Dict[str, Any]:
-        """Получение статистики пользователя с подсчетом питомцев"""
+        """Получение статистики пользователя"""
         user_id = str(user_id)
         if user_id not in self.users:
+            # Создаем нового пользователя
             self.users[user_id] = {
                 'clicks': 0,
                 'click_power': 1,
                 'passive_income': 0,
                 'inventory': [],
                 'equipped_pets': [],
-                'pet_levels': {},  # Уровни питомцев
-                'last_save': 0     # Timestamp последнего сохранения
+                'pet_counts': {}
             }
-            self.save()
-        
-        # Подсчитываем количество каждого питомца
-        pet_counts = {}
-        for pet in self.users[user_id]['inventory']:
-            pet_counts[pet] = pet_counts.get(pet, 0) + 1
-        
-        # Добавляем счетчики в статистику
-        self.users[user_id]['pet_counts'] = pet_counts
-        
-        # Добавляем текущие множители в статистику
-        click_mult, passive_mult = self.calculate_multipliers(self.users[user_id])
-        self.users[user_id]['current_click_power'] = round(self.users[user_id]['click_power'] * click_mult)
-        self.users[user_id]['current_passive_income'] = round(self.users[user_id]['passive_income'] * passive_mult)
-        
+            self.save()  # Сразу сохраняем нового пользователя
         return self.users[user_id]
 
     def calculate_multipliers(self, user: Dict) -> tuple:
@@ -95,17 +83,14 @@ class Database:
         return click_multiplier, passive_multiplier
 
     def click(self, user_id: str) -> Dict[str, Any]:
-        """Обработка клика с множителями"""
+        """Обработка клика с сохранением"""
         user = self.get_user_stats(user_id)
         click_mult, _ = self.calculate_multipliers(user)
         
-        # Применяем множитель к базовой силе клика
-        total_power = int(user['click_power'] * click_mult)
+        total_power = round(user['click_power'] * click_mult)
         user['clicks'] += total_power
         
-        # Сохраняем текущую силу клика для отображения
-        user['current_click_power'] = total_power
-        
+        # Сохраняем после каждого клика
         self.save()
         return user
 
