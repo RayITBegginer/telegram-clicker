@@ -23,6 +23,7 @@ class Database:
         self.filename = 'database.json'
         self.users = {}
         self.load()
+        print("Database initialized")  # Отладка
 
     def load(self):
         """Загрузка данных из файла"""
@@ -32,29 +33,26 @@ class Database:
                     data = json.load(f)
                     if isinstance(data, dict):
                         self.users = data
+                        print(f"Loaded data: {self.users}")  # Отладка
                     else:
-                        print("Invalid data format in database.json")
+                        print("Creating new database - invalid format")
                         self.users = {}
+            else:
+                print("Creating new database file")
+                self.users = {}
+                self.save()
         except Exception as e:
             print(f"Error loading database: {e}")
             self.users = {}
-            self.save()
 
     def save(self):
-        """Надежное сохранение данных"""
+        """Сохранение данных"""
         try:
-            # Сохраняем во временный файл
-            temp_filename = f"{self.filename}.tmp"
-            with open(temp_filename, 'w', encoding='utf-8') as f:
+            # Прямое сохранение в файл
+            with open(self.filename, 'w', encoding='utf-8') as f:
                 json.dump(self.users, f, ensure_ascii=False, indent=2)
-            
-            # Проверяем, что данные записались
-            if os.path.exists(temp_filename):
-                # Заменяем основной файл
-                os.replace(temp_filename, self.filename)
-                print(f"Saved database: {self.users}")  # Отладочный вывод
-                return True
-            return False
+            print(f"Saved data: {self.users}")  # Отладка
+            return True
         except Exception as e:
             print(f"Error saving database: {e}")
             return False
@@ -63,6 +61,7 @@ class Database:
         """Получение статистики пользователя"""
         user_id = str(user_id)
         if user_id not in self.users:
+            print(f"Creating new user: {user_id}")  # Отладка
             self.users[user_id] = {
                 'clicks': 0,
                 'click_power': 1,
@@ -88,15 +87,10 @@ class Database:
         return click_multiplier, passive_multiplier
 
     def click(self, user_id: str) -> Dict[str, Any]:
-        """Обработка клика с сохранением"""
+        """Обработка клика"""
         user = self.get_user_stats(user_id)
-        click_mult, _ = self.calculate_multipliers(user)
-        
-        total_power = round(user['click_power'] * click_mult)
-        user['clicks'] += total_power
-        
-        # Сохраняем после каждого клика
-        self.save()
+        user['clicks'] += user['click_power']
+        self.save()  # Сохраняем после каждого клика
         return user
 
     def upgrade_click(self, user_id: str) -> Dict[str, Any]:
