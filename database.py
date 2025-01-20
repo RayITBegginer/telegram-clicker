@@ -110,36 +110,57 @@ class Database:
         return user
 
     def upgrade_click(self, user_id: str) -> Dict[str, Any]:
-        """Улучшение силы клика"""
+        """Улучшение силы клика с обновлением множителей"""
         user = self.get_user_stats(user_id)
         cost = int(50 * (1.5 ** (user['click_power'] - 1)))
         
         if user['clicks'] >= cost:
             user['clicks'] -= cost
             user['click_power'] += 1
+            
+            # Пересчитываем множители
+            click_mult, passive_mult = self.calculate_multipliers(user)
+            user['current_click_power'] = round(user['click_power'] * click_mult)
+            user['current_passive_income'] = round(user['passive_income'] * passive_mult)
+            
             self.save()
             return user
         return None
 
     def upgrade_passive(self, user_id: str) -> Dict[str, Any]:
-        """Улучшение пассивного дохода"""
+        """Улучшение пассивного дохода с обновлением множителей"""
         user = self.get_user_stats(user_id)
         cost = int(100 * (1.5 ** user['passive_income']))
         
         if user['clicks'] >= cost:
             user['clicks'] -= cost
             user['passive_income'] += 1
+            
+            # Пересчитываем множители
+            click_mult, passive_mult = self.calculate_multipliers(user)
+            user['current_click_power'] = round(user['click_power'] * click_mult)
+            user['current_passive_income'] = round(user['passive_income'] * passive_mult)
+            
             self.save()
             return user
         return None
 
     def open_box(self, user_id: str) -> Dict[str, Any]:
-        """Открытие бокса с питомцем"""
+        """Открытие бокса с мгновенным списанием кликов"""
         user = self.get_user_stats(user_id)
         if user['clicks'] >= 500:
+            # Сначала списываем клики
             user['clicks'] -= 500
+            self.save()
+            
             pet = random.choice(list(PETS.keys()))
             user['inventory'].append(pet)
+            
+            # Пересчитываем множители
+            click_mult, passive_mult = self.calculate_multipliers(user)
+            user['current_click_power'] = round(user['click_power'] * click_mult)
+            user['current_passive_income'] = round(user['passive_income'] * passive_mult)
+            
             self.save()
             return {
                 'success': True,
@@ -294,4 +315,19 @@ class Database:
             'success': True,
             'new_level': current_level + 1,
             'user_stats': user
-        } 
+        }
+
+    def unequip_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
+        """Снятие питомца"""
+        user = self.get_user_stats(user_id)
+        if pet in user['equipped_pets']:
+            user['equipped_pets'].remove(pet)
+            
+            # Пересчитываем множители
+            click_mult, passive_mult = self.calculate_multipliers(user)
+            user['current_click_power'] = round(user['click_power'] * click_mult)
+            user['current_passive_income'] = round(user['passive_income'] * passive_mult)
+            
+            self.save()
+            return user
+        return None 

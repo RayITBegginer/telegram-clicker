@@ -88,8 +88,7 @@ async function equipPet(pet) {
     const result = await sendAction('equip_pet', { pet });
     if (result && !result.error) {
         updateInventory(result);
-        // Обновляем статистику сразу после экипировки
-        loadStats();
+        updateStats(result);
     }
 }
 
@@ -97,8 +96,7 @@ async function unequipPet(pet) {
     const result = await sendAction('unequip_pet', { pet });
     if (result && !result.error) {
         updateInventory(result);
-        // Обновляем статистику сразу после снятия
-        loadStats();
+        updateStats(result);
     }
 }
 
@@ -131,8 +129,8 @@ function updateInventory(data) {
         const equippedCount = data.equipped_pets.filter(p => p === pet).length;
         const totalCount = data.pet_counts[pet];
         const canEquip = equippedCount < totalCount && data.equipped_pets.length < 2;
+        const isEquipped = data.equipped_pets.includes(pet);
         
-        const isEquipped = equippedCount > 0;
         if (isEquipped) petCard.classList.add('equipped');
         
         fetch('/api/pets')
@@ -150,13 +148,11 @@ function updateInventory(data) {
                         </div>
                     </div>
                     <div class="pet-buttons">
-                        <button onclick="${isEquipped ? 'unequipPet' : 'equipPet'}('${pet}')"
-                                ${!canEquip && !isEquipped ? 'disabled' : ''}>
-                            ${isEquipped ? 'Снять' : 'Экипировать'}
-                        </button>
-                        <button class="delete-button" onclick="deletePet('${pet}')">
-                            Удалить
-                        </button>
+                        ${isEquipped ? 
+                            `<button onclick="unequipPet('${pet}')">Снять</button>` :
+                            `<button onclick="equipPet('${pet}')" ${!canEquip ? 'disabled' : ''}>Экипировать</button>`
+                        }
+                        <button class="delete-button" onclick="deletePet('${pet}')">Удалить</button>
                     </div>
                 `;
             });
