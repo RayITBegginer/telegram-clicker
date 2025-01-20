@@ -6,60 +6,80 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
+        :root {
+            --tg-theme-bg-color: #ffffff;
+            --tg-theme-text-color: #000000;
+            --tg-theme-button-color: #50a8eb;
+            --tg-theme-button-text-color: #ffffff;
+        }
+
         body {
-            font-family: Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             max-width: 500px;
             margin: 0 auto;
             padding: 20px;
-            background-color: var(--tg-theme-bg-color, #ffffff);
-            color: var(--tg-theme-text-color, #000000);
+            background-color: var(--tg-theme-bg-color);
+            color: var(--tg-theme-text-color);
+        }
+
+        .stats {
+            background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
+            padding: 15px;
+            border-radius: 12px;
+            margin: 10px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
 
         .click-button {
             width: 100%;
             height: 100px;
             font-size: 24px;
-            margin: 10px 0;
-            background-color: var(--tg-theme-button-color, #50a8eb);
-            color: var(--tg-theme-button-text-color, #ffffff);
+            margin: 15px 0;
+            background-color: var(--tg-theme-button-color);
+            color: var(--tg-theme-button-text-color);
             border: none;
-            border-radius: 10px;
+            border-radius: 12px;
             cursor: pointer;
+            transition: transform 0.1s;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+
+        .click-button:active {
+            transform: scale(0.98);
         }
 
         .upgrade-button {
             width: 100%;
             padding: 15px;
-            margin: 5px 0;
+            margin: 8px 0;
             background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
-            border: 2px solid var(--tg-theme-button-color, #50a8eb);
-            border-radius: 8px;
+            border: 2px solid var(--tg-theme-button-color);
+            border-radius: 10px;
             cursor: pointer;
+            transition: background-color 0.2s;
         }
 
-        .stats {
-            background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
-            padding: 15px;
-            border-radius: 8px;
-            margin: 10px 0;
+        .upgrade-button:hover {
+            background-color: rgba(80, 168, 235, 0.1);
         }
 
         .inventory-button {
             width: 100%;
-            padding: 10px;
+            padding: 12px;
             margin: 10px 0;
-            background-color: var(--tg-theme-button-color, #50a8eb);
-            color: var(--tg-theme-button-text-color, #ffffff);
+            background-color: var(--tg-theme-button-color);
+            color: var(--tg-theme-button-text-color);
             border: none;
-            border-radius: 8px;
+            border-radius: 10px;
             cursor: pointer;
+            font-weight: bold;
         }
 
         .inventory {
             display: none;
             background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
             padding: 15px;
-            border-radius: 8px;
+            border-radius: 12px;
             margin-top: 10px;
         }
 
@@ -68,19 +88,27 @@
         }
 
         .pet-card {
-            background-color: var(--tg-theme-bg-color, #ffffff);
-            padding: 10px;
-            margin: 5px 0;
-            border-radius: 5px;
-            border: 1px solid var(--tg-theme-button-color, #50a8eb);
+            background-color: var(--tg-theme-bg-color);
+            padding: 15px;
+            margin: 8px 0;
+            border-radius: 10px;
+            border: 1px solid var(--tg-theme-button-color);
+            transition: transform 0.2s;
         }
 
         .pet-card.equipped {
             border: 2px solid #4CAF50;
+            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.2);
         }
 
         .pet-info {
-            margin-bottom: 5px;
+            margin-bottom: 8px;
+        }
+
+        .pet-stats {
+            font-size: 0.9em;
+            color: var(--tg-theme-hint-color, #999);
+            margin: 5px 0;
         }
 
         .pet-limit {
@@ -90,7 +118,12 @@
             border-radius: 8px;
             text-align: center;
             font-weight: bold;
-            color: var(--tg-theme-text-color, #000000);
+            color: var(--tg-theme-text-color);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
         }
     </style>
 </head>
@@ -124,201 +157,6 @@
         <div id="equipped-pets"></div>
     </div>
 
-    <script>
-        const clickButton = document.getElementById('click-button');
-        const clicksElement = document.getElementById('clicks');
-        const clickPowerElement = document.getElementById('click-power');
-        const passiveIncomeElement = document.getElementById('passive-income');
-        const inventoryButton = document.getElementById('toggle-inventory');
-        const inventoryContainer = document.getElementById('inventory');
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const userId = urlParams.get('user_id');
-
-        // Базовая функция отправки действий
-        async function sendAction(action, data = {}) {
-            try {
-                const response = await fetch(`/api/${action}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ user_id: userId, ...data })
-                });
-                return await response.json();
-            } catch (error) {
-                console.error(`Error in ${action}:`, error);
-                return null;
-            }
-        }
-
-        // Клик без задержек
-        clickButton.addEventListener('click', () => {
-            const currentClicks = parseInt(clicksElement.textContent) || 0;
-            const clickPower = parseInt(clickPowerElement.textContent) || 1;
-            clicksElement.textContent = currentClicks + clickPower;
-            
-            sendAction('click');
-        });
-
-        // Улучшение клика
-        document.getElementById('upgrade-click').addEventListener('click', () => {
-            const currentClicks = parseInt(clicksElement.textContent) || 0;
-            const cost = parseInt(document.getElementById('click-cost').textContent) || 50;
-            
-            if (currentClicks >= cost) {
-                clicksElement.textContent = currentClicks - cost;
-                clickPowerElement.textContent = parseInt(clickPowerElement.textContent) + 1;
-                document.getElementById('click-cost').textContent = 
-                    Math.floor(50 * Math.pow(1.5, parseInt(clickPowerElement.textContent) - 1));
-                
-                sendAction('upgrade_click');
-            } else {
-                alert('Недостаточно кликов!');
-            }
-        });
-
-        // Улучшение пассивного дохода
-        document.getElementById('upgrade-passive').addEventListener('click', () => {
-            const currentClicks = parseInt(clicksElement.textContent) || 0;
-            const cost = parseInt(document.getElementById('passive-cost').textContent) || 100;
-            
-            if (currentClicks >= cost) {
-                clicksElement.textContent = currentClicks - cost;
-                passiveIncomeElement.textContent = parseInt(passiveIncomeElement.textContent) + 1;
-                document.getElementById('passive-cost').textContent = 
-                    Math.floor(100 * Math.pow(1.5, parseInt(passiveIncomeElement.textContent)));
-                
-                sendAction('upgrade_passive');
-            } else {
-                alert('Недостаточно кликов!');
-            }
-        });
-
-        // Открытие бокса
-        document.getElementById('box-button').addEventListener('click', () => {
-            const currentClicks = parseInt(clicksElement.textContent) || 0;
-            
-            if (currentClicks >= 500) {
-                clicksElement.textContent = currentClicks - 500;
-                
-                sendAction('box').then(result => {
-                    if (result && result.success) {
-                        const pet = result.pet_info;
-                        alert(`Вы получили питомца: ${pet.name}!\nМножитель клика: x${pet.click_multiplier}\nМножитель дохода: x${pet.passive_multiplier}\nРедкость: ${pet.rarity}`);
-                        updateInventory(result.user_stats);
-                    }
-                });
-            } else {
-                alert('Недостаточно кликов! Нужно 500');
-            }
-        });
-
-        // Функции для питомцев
-        function equipPet(pet) {
-            const equippedCount = document.querySelectorAll('.pet-card.equipped').length;
-            if (equippedCount >= 2) {
-                alert('Максимум можно экипировать 2 питомца!');
-                return;
-            }
-            
-            const petCard = document.querySelector(`[data-pet="${pet}"]`);
-            if (petCard) {
-                petCard.classList.add('equipped');
-                petCard.querySelector('button').textContent = 'Снять';
-                petCard.querySelector('button').onclick = () => unequipPet(pet);
-            }
-            
-            document.getElementById('equipped-count').textContent = equippedCount + 1;
-            sendAction('equip_pet', { pet });
-        }
-
-        function unequipPet(pet) {
-            const petCard = document.querySelector(`[data-pet="${pet}"]`);
-            if (petCard) {
-                petCard.classList.remove('equipped');
-                petCard.querySelector('button').textContent = 'Экипировать';
-                petCard.querySelector('button').onclick = () => equipPet(pet);
-            }
-            
-            const equippedCount = document.querySelectorAll('.pet-card.equipped').length;
-            document.getElementById('equipped-count').textContent = equippedCount - 1;
-            sendAction('unequip_pet', { pet });
-        }
-
-        // Обновление инвентаря
-        function updateInventory(data) {
-            if (!data || !data.inventory) return;
-            
-            const petsElement = document.getElementById('equipped-pets');
-            petsElement.innerHTML = '';
-            
-            const equippedCount = data.equipped_pets ? data.equipped_pets.length : 0;
-            document.getElementById('equipped-count').textContent = equippedCount;
-            
-            data.inventory.forEach(pet => {
-                const petCard = document.createElement('div');
-                petCard.className = 'pet-card';
-                petCard.dataset.pet = pet;
-                
-                const isEquipped = data.equipped_pets && data.equipped_pets.includes(pet);
-                if (isEquipped) petCard.classList.add('equipped');
-                
-                fetch('/api/pets')
-                    .then(response => response.json())
-                    .then(pets => {
-                        const petInfo = pets[pet];
-                        petCard.innerHTML = `
-                            <div class="pet-info">
-                                🐾 ${pet}
-                                <div class="pet-stats">
-                                    Множитель клика: x${petInfo.click_multiplier}
-                                    Множитель дохода: x${petInfo.passive_multiplier}
-                                    Редкость: ${petInfo.rarity}
-                                </div>
-                            </div>
-                            <button onclick="${isEquipped ? 'unequipPet' : 'equipPet'}('${pet}')"
-                                    ${!isEquipped && equippedCount >= 2 ? 'disabled' : ''}>
-                                ${isEquipped ? 'Снять' : 'Экипировать'}
-                            </button>
-                        `;
-                    });
-                
-                petsElement.appendChild(petCard);
-            });
-        }
-
-        // Переключение инвентаря
-        inventoryButton.addEventListener('click', () => {
-            inventoryContainer.classList.toggle('active');
-        });
-
-        // Пассивный доход
-        setInterval(() => {
-            const passiveIncome = parseInt(passiveIncomeElement.textContent) || 0;
-            if (passiveIncome > 0) {
-                const currentClicks = parseInt(clicksElement.textContent) || 0;
-                clicksElement.textContent = currentClicks + passiveIncome;
-                sendAction('passive_income');
-            }
-        }, 1000);
-
-        // Начальная загрузка
-        async function loadStats() {
-            const data = await sendAction('stats');
-            if (data) {
-                clicksElement.textContent = data.clicks;
-                clickPowerElement.textContent = data.click_power;
-                passiveIncomeElement.textContent = data.passive_income;
-                
-                document.getElementById('click-cost').textContent = 
-                    Math.floor(50 * Math.pow(1.5, data.click_power - 1));
-                document.getElementById('passive-cost').textContent = 
-                    Math.floor(100 * Math.pow(1.5, data.passive_income));
-                
-                updateInventory(data);
-            }
-        }
-
-        loadStats();
-    </script>
+    <script src="static/app.js"></script>
 </body>
 </html> 

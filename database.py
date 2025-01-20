@@ -5,6 +5,7 @@ from config import PETS, BOX_CHANCES, BOX_COST
 import random
 from typing import Dict, Any
 
+# Улучшенная система питомцев с уровнями
 PETS = {
     'Котенок': {'name': 'Котенок', 'click_multiplier': 1.2, 'passive_multiplier': 1.1, 'rarity': 'Обычный'},
     'Щенок': {'name': 'Щенок', 'click_multiplier': 1.2, 'passive_multiplier': 1.2, 'rarity': 'Обычный'},
@@ -18,35 +19,46 @@ MAX_EQUIPPED_PETS = 2
 
 class Database:
     def __init__(self):
+        """Инициализация базы данных с проверкой файла"""
+        self.filename = 'database.json'
+        if not os.path.exists(self.filename):
+            self.users = {}
+            self.save()
+        else:
+            self.load()
+
+    def load(self):
+        """Загрузка базы данных"""
         try:
-            with open('database.json', 'r', encoding='utf-8') as f:
+            with open(self.filename, 'r', encoding='utf-8') as f:
                 self.users = json.load(f)
-        except (FileNotFoundError, json.JSONDecodeError):
+        except:
             self.users = {}
             self.save()
 
     def save(self):
-        with open('database.json', 'w', encoding='utf-8') as f:
+        """Сохранение базы данных"""
+        with open(self.filename, 'w', encoding='utf-8') as f:
             json.dump(self.users, f, ensure_ascii=False, indent=2)
 
     def get_user_stats(self, user_id: str) -> Dict[str, Any]:
-        if str(user_id) not in self.users:
-            self.users[str(user_id)] = {
+        """Получение статистики пользователя"""
+        user_id = str(user_id)
+        if user_id not in self.users:
+            self.users[user_id] = {
                 'clicks': 0,
                 'click_power': 1,
                 'passive_income': 0,
                 'inventory': [],
                 'equipped_pets': [],
-                'achievements': {
-                    'clicks_made': 0,
-                    'boxes_opened': 0,
-                    'pets_collected': 0
-                }
+                'pet_levels': {},  # Уровни питомцев
+                'last_save': 0     # Timestamp последнего сохранения
             }
             self.save()
-        return self.users[str(user_id)]
+        return self.users[user_id]
 
     def calculate_multipliers(self, user: Dict) -> tuple:
+        """Подсчет множителей от питомцев"""
         click_multiplier = 1.0
         passive_multiplier = 1.0
         
@@ -58,23 +70,16 @@ class Database:
         return click_multiplier, passive_multiplier
 
     def click(self, user_id: str) -> Dict[str, Any]:
+        """Обработка клика с учетом множителей"""
         user = self.get_user_stats(user_id)
         click_mult, _ = self.calculate_multipliers(user)
         
-        total_power = int(user['click_power'] * click_mult)
-        user['clicks'] += total_power
-        user['achievements']['clicks_made'] += 1
+        user['clicks'] += int(user['click_power'] * click_mult)
         self.save()
-        
-        return {
-            'clicks': user['clicks'],
-            'click_power': total_power,
-            'passive_income': user['passive_income'],
-            'inventory': user['inventory'],
-            'equipped_pets': user['equipped_pets']
-        }
+        return user
 
     def upgrade_click(self, user_id: str) -> Dict[str, Any]:
+        """Улучшение силы клика"""
         user = self.get_user_stats(user_id)
         cost = int(50 * (1.5 ** (user['click_power'] - 1)))
         
@@ -86,6 +91,7 @@ class Database:
         return None
 
     def upgrade_passive(self, user_id: str) -> Dict[str, Any]:
+        """Улучшение пассивного дохода"""
         user = self.get_user_stats(user_id)
         cost = int(100 * (1.5 ** user['passive_income']))
         
@@ -97,89 +103,49 @@ class Database:
         return None
 
     def open_box(self, user_id: str) -> Dict[str, Any]:
+        """Открытие бокса с питомцем"""
         user = self.get_user_stats(user_id)
         if user['clicks'] >= 500:
             user['clicks'] -= 500
             pet = random.choice(list(PETS.keys()))
             user['inventory'].append(pet)
-            user['achievements']['boxes_opened'] += 1
-            user['achievements']['pets_collected'] += 1
             self.save()
-            
-            total_click, total_passive = self.calculate_multipliers(user)
-            
             return {
                 'success': True,
-                'pet_info': {
-                    'name': pet,
-                    'click_power': PETS[pet]['click_power'],
-                    'passive_power': PETS[pet]['passive_multiplier'],
-                    'rarity': PETS[pet]['rarity']
-                },
-                'user_stats': {
-                    'clicks': user['clicks'],
-                    'click_power': int(user['click_power'] * total_click),
-                    'passive_income': int(user['passive_income'] * total_passive),
-                    'inventory': user['inventory'],
-                    'equipped_pets': user['equipped_pets']
-                }
+                'pet_info': PETS[pet],
+                'user_stats': user
             }
-        return {'success': False, 'error': 'Недостаточно кликов'}
+        return None
 
     def equip_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
+        """Экипировка питомца"""
         user = self.get_user_stats(user_id)
         if pet in user['inventory'] and pet not in user['equipped_pets']:
             if len(user['equipped_pets']) < MAX_EQUIPPED_PETS:
                 user['equipped_pets'].append(pet)
                 self.save()
-                
-                total_click, total_passive = self.calculate_multipliers(user)
-                
-                return {
-                    'clicks': user['clicks'],
-                    'click_power': int(user['click_power'] * total_click),
-                    'passive_income': int(user['passive_income'] * total_passive),
-                    'inventory': user['inventory'],
-                    'equipped_pets': user['equipped_pets'],
-                    'max_pets': MAX_EQUIPPED_PETS
-                }
+                return user
         return None
 
     def unequip_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
+        """Снятие питомца"""
         user = self.get_user_stats(user_id)
         if pet in user['equipped_pets']:
             user['equipped_pets'].remove(pet)
             self.save()
-            
-            total_click, total_passive = self.calculate_multipliers(user)
-            
-            return {
-                'clicks': user['clicks'],
-                'click_power': int(user['click_power'] * total_click),
-                'passive_income': int(user['passive_income'] * total_passive),
-                'inventory': user['inventory'],
-                'equipped_pets': user['equipped_pets']
-            }
+            return user
         return None
 
     def passive_income(self, user_id: str) -> Dict[str, Any]:
+        """Начисление пассивного дохода"""
         user = self.get_user_stats(user_id)
         _, passive_mult = self.calculate_multipliers(user)
         
         if user['passive_income'] > 0:
-            total_passive = int(user['passive_income'] * passive_mult)
-            user['clicks'] += total_passive
+            income = int(user['passive_income'] * passive_mult)
+            user['clicks'] += income
             self.save()
-            
-            total_click, _ = self.calculate_multipliers(user)
-            
-            return {
-                'clicks': user['clicks'],
-                'click_power': int(user['click_power'] * total_click),
-                'passive_income': total_passive,
-                'inventory': user['inventory'],
-                'equipped_pets': user['equipped_pets']
-            }
+            return user
         return None
 
     def create_user(self, user_id):
@@ -191,12 +157,8 @@ class Database:
                 'passive_income': 0,
                 'inventory': [],
                 'equipped_pets': [],
-                'last_save': datetime.now().isoformat(),
-                'achievements': {
-                    'clicks_made': 0,
-                    'boxes_opened': 0,
-                    'pets_collected': 0
-                }
+                'pet_levels': {},
+                'last_save': datetime.now().isoformat()
             }
             self.save()
         return self.users[str_id]
@@ -246,4 +208,28 @@ class Database:
         # Сортируем по количеству кликов
         sorted_players = sorted(players, key=lambda x: x['clicks'], reverse=True)
         
-        return sorted_players[:limit] 
+        return sorted_players[:limit]
+
+    def upgrade_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
+        """Улучшение питомца"""
+        user = self.get_user_stats(user_id)
+        if pet not in user['inventory']:
+            return None
+            
+        current_level = user['pet_levels'].get(pet, 1)
+        if current_level >= PETS[pet]['max_level']:
+            return {'error': 'Достигнут максимальный уровень'}
+            
+        upgrade_cost = PETS[pet]['upgrade_cost'] * current_level
+        if user['clicks'] < upgrade_cost:
+            return {'error': 'Недостаточно кликов'}
+            
+        user['clicks'] -= upgrade_cost
+        user['pet_levels'][pet] = current_level + 1
+        self.save()
+        
+        return {
+            'success': True,
+            'new_level': current_level + 1,
+            'user_stats': user
+        } 

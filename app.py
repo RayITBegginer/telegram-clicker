@@ -19,18 +19,16 @@ if not os.path.exists('database.json'):
 
 @app.route('/')
 def index():
+    """Главная страница"""
     user_id = request.args.get('user_id')
     if not user_id:
         return 'Требуется user_id'
     return render_template('index.html')
 
-@app.route('/api/stats', methods=['GET', 'POST'])
+@app.route('/api/stats')
 def get_stats():
-    if request.method == 'GET':
-        user_id = request.args.get('user_id')
-    else:
-        user_id = request.json.get('user_id')
-    
+    """Получение статистики игрока"""
+    user_id = request.args.get('user_id')
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
     
@@ -40,6 +38,7 @@ def get_stats():
 
 @app.route('/api/click', methods=['POST'])
 def click():
+    """Обработка клика"""
     user_id = request.json.get('user_id')
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
@@ -47,6 +46,7 @@ def click():
 
 @app.route('/api/upgrade_click', methods=['POST'])
 def upgrade_click():
+    """Улучшение силы клика"""
     user_id = request.json.get('user_id')
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
@@ -55,6 +55,7 @@ def upgrade_click():
 
 @app.route('/api/upgrade_passive', methods=['POST'])
 def upgrade_passive():
+    """Улучшение пассивного дохода"""
     user_id = request.json.get('user_id')
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
@@ -63,6 +64,7 @@ def upgrade_passive():
 
 @app.route('/api/box', methods=['POST'])
 def open_box():
+    """Открытие бокса с питомцем"""
     user_id = request.json.get('user_id')
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
@@ -71,6 +73,7 @@ def open_box():
 
 @app.route('/api/equip_pet', methods=['POST'])
 def equip_pet():
+    """Экипировка питомца"""
     user_id = request.json.get('user_id')
     pet = request.json.get('pet')
     if not user_id or not pet:
@@ -80,6 +83,7 @@ def equip_pet():
 
 @app.route('/api/unequip_pet', methods=['POST'])
 def unequip_pet():
+    """Снятие питомца"""
     user_id = request.json.get('user_id')
     pet = request.json.get('pet')
     if not user_id or not pet:
@@ -89,6 +93,7 @@ def unequip_pet():
 
 @app.route('/api/passive_income', methods=['POST'])
 def passive_income():
+    """Начисление пассивного дохода"""
     user_id = request.json.get('user_id')
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
@@ -97,6 +102,7 @@ def passive_income():
 
 @app.route('/api/pets')
 def get_pets():
+    """Получение информации о питомцах"""
     return jsonify(PETS)
 
 if __name__ == '__main__':
