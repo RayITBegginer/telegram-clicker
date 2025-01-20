@@ -17,38 +17,21 @@ PETS = {
 MAX_EQUIPPED_PETS = 2
 
 class Database:
-    def __init__(self, filename: str = 'database.json'):
-        self.filename = filename
-        self.load_database()
-    
-    def load_database(self):
-        """Загрузка базы данных с проверкой целостности"""
+    def __init__(self):
         try:
-            if os.path.exists(self.filename):
-                with open(self.filename, 'r', encoding='utf-8') as f:
-                    self.users = json.load(f)
-            else:
-                self.users = {}
-        except Exception as e:
-            print(f"Error loading database: {e}")
+            with open('database.json', 'r', encoding='utf-8') as f:
+                self.users = json.load(f)
+        except (FileNotFoundError, json.JSONDecodeError):
             self.users = {}
-        self.save()
+            self.save()
 
     def save(self):
-        """Сохранение базы данных с проверкой"""
-        try:
-            with open(self.filename, 'w', encoding='utf-8') as f:
-                json.dump(self.users, f, indent=2, ensure_ascii=False)
-            return True
-        except Exception as e:
-            print(f"Error saving database: {e}")
-            return False
+        with open('database.json', 'w', encoding='utf-8') as f:
+            json.dump(self.users, f, ensure_ascii=False, indent=2)
 
     def get_user_stats(self, user_id: str) -> Dict[str, Any]:
-        """Получение статистики пользователя с проверкой структуры"""
-        user_id = str(user_id)
-        if user_id not in self.users:
-            self.users[user_id] = {
+        if str(user_id) not in self.users:
+            self.users[str(user_id)] = {
                 'clicks': 0,
                 'click_power': 1,
                 'passive_income': 0,
@@ -61,35 +44,31 @@ class Database:
                 }
             }
             self.save()
-        return self.users[user_id]
+        return self.users[str(user_id)]
 
-    def calculate_total_power(self, user: Dict) -> tuple:
-        """Подсчет общей силы клика и пассивного дохода с множителями от питомцев"""
-        base_click = user['click_power']
-        base_passive = user['passive_income']
-        
+    def calculate_multipliers(self, user: Dict) -> tuple:
         click_multiplier = 1.0
         passive_multiplier = 1.0
         
-        for pet in user['equipped_pets'][:MAX_EQUIPPED_PETS]:  # Ограничение в 2 питомца
+        for pet in user['equipped_pets'][:MAX_EQUIPPED_PETS]:
             if pet in PETS:
                 click_multiplier *= PETS[pet]['click_multiplier']
                 passive_multiplier *= PETS[pet]['passive_multiplier']
         
-        return int(base_click * click_multiplier), int(base_passive * passive_multiplier)
+        return click_multiplier, passive_multiplier
 
     def click(self, user_id: str) -> Dict[str, Any]:
-        """Обработка клика с учетом питомцев"""
         user = self.get_user_stats(user_id)
-        total_click, _ = self.calculate_total_power(user)
+        click_mult, _ = self.calculate_multipliers(user)
         
-        user['clicks'] += total_click
+        total_power = int(user['click_power'] * click_mult)
+        user['clicks'] += total_power
         user['achievements']['clicks_made'] += 1
         self.save()
         
         return {
             'clicks': user['clicks'],
-            'click_power': total_click,
+            'click_power': total_power,
             'passive_income': user['passive_income'],
             'inventory': user['inventory'],
             'equipped_pets': user['equipped_pets']
@@ -118,9 +97,7 @@ class Database:
         return None
 
     def open_box(self, user_id: str) -> Dict[str, Any]:
-        """Открытие бокса с получением питомца"""
         user = self.get_user_stats(user_id)
-        
         if user['clicks'] >= 500:
             user['clicks'] -= 500
             pet = random.choice(list(PETS.keys()))
@@ -129,20 +106,20 @@ class Database:
             user['achievements']['pets_collected'] += 1
             self.save()
             
-            total_click, total_passive = self.calculate_total_power(user)
+            total_click, total_passive = self.calculate_multipliers(user)
             
             return {
                 'success': True,
                 'pet_info': {
                     'name': pet,
                     'click_power': PETS[pet]['click_power'],
-                    'passive_power': PETS[pet]['passive_power'],
+                    'passive_power': PETS[pet]['passive_multiplier'],
                     'rarity': PETS[pet]['rarity']
                 },
                 'user_stats': {
                     'clicks': user['clicks'],
-                    'click_power': total_click,
-                    'passive_income': total_passive,
+                    'click_power': int(user['click_power'] * total_click),
+                    'passive_income': int(user['passive_income'] * total_passive),
                     'inventory': user['inventory'],
                     'equipped_pets': user['equipped_pets']
                 }
@@ -150,20 +127,18 @@ class Database:
         return {'success': False, 'error': 'Недостаточно кликов'}
 
     def equip_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
-        """Экипировка питомца с ограничением"""
         user = self.get_user_stats(user_id)
-        
         if pet in user['inventory'] and pet not in user['equipped_pets']:
             if len(user['equipped_pets']) < MAX_EQUIPPED_PETS:
                 user['equipped_pets'].append(pet)
                 self.save()
                 
-                total_click, total_passive = self.calculate_total_power(user)
+                total_click, total_passive = self.calculate_multipliers(user)
                 
                 return {
                     'clicks': user['clicks'],
-                    'click_power': total_click,
-                    'passive_income': total_passive,
+                    'click_power': int(user['click_power'] * total_click),
+                    'passive_income': int(user['passive_income'] * total_passive),
                     'inventory': user['inventory'],
                     'equipped_pets': user['equipped_pets'],
                     'max_pets': MAX_EQUIPPED_PETS
@@ -171,38 +146,36 @@ class Database:
         return None
 
     def unequip_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
-        """Снятие питомца"""
         user = self.get_user_stats(user_id)
-        
         if pet in user['equipped_pets']:
             user['equipped_pets'].remove(pet)
             self.save()
             
-            total_click, total_passive = self.calculate_total_power(user)
+            total_click, total_passive = self.calculate_multipliers(user)
             
             return {
                 'clicks': user['clicks'],
-                'click_power': total_click,
-                'passive_income': total_passive,
+                'click_power': int(user['click_power'] * total_click),
+                'passive_income': int(user['passive_income'] * total_passive),
                 'inventory': user['inventory'],
                 'equipped_pets': user['equipped_pets']
             }
         return None
 
     def passive_income(self, user_id: str) -> Dict[str, Any]:
-        """Начисление пассивного дохода с учетом питомцев"""
         user = self.get_user_stats(user_id)
-        _, total_passive = self.calculate_total_power(user)
+        _, passive_mult = self.calculate_multipliers(user)
         
-        if total_passive > 0:
+        if user['passive_income'] > 0:
+            total_passive = int(user['passive_income'] * passive_mult)
             user['clicks'] += total_passive
             self.save()
             
-            total_click, _ = self.calculate_total_power(user)
+            total_click, _ = self.calculate_multipliers(user)
             
             return {
                 'clicks': user['clicks'],
-                'click_power': total_click,
+                'click_power': int(user['click_power'] * total_click),
                 'passive_income': total_passive,
                 'inventory': user['inventory'],
                 'equipped_pets': user['equipped_pets']

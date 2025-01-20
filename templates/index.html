@@ -1,49 +1,88 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Telegram Clicker</title>
+    <title>Кликер</title>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 20px;
-            background-color: var(--tg-theme-bg-color, #fff);
-            color: var(--tg-theme-text-color, #000);
-        }
-        .container {
-            max-width: 600px;
+            max-width: 500px;
             margin: 0 auto;
-            text-align: center;
+            padding: 20px;
+            background-color: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
         }
+
         .click-button {
-            background-color: var(--tg-theme-button-color, #2481cc);
-            color: var(--tg-theme-button-text-color, #fff);
+            width: 100%;
+            height: 100px;
+            font-size: 24px;
+            margin: 10px 0;
+            background-color: var(--tg-theme-button-color, #50a8eb);
+            color: var(--tg-theme-button-text-color, #ffffff);
             border: none;
             border-radius: 10px;
-            padding: 15px 30px;
-            font-size: 18px;
-            margin: 10px;
             cursor: pointer;
-            transition: transform 0.1s;
         }
-        .click-button:active {
-            transform: scale(0.95);
+
+        .upgrade-button {
+            width: 100%;
+            padding: 15px;
+            margin: 5px 0;
+            background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
+            border: 2px solid var(--tg-theme-button-color, #50a8eb);
+            border-radius: 8px;
+            cursor: pointer;
         }
-        .inventory-container {
+
+        .stats {
+            background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+        }
+
+        .inventory-button {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            background-color: var(--tg-theme-button-color, #50a8eb);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .inventory {
             display: none;
-            margin-top: 20px;
+            background-color: var(--tg-theme-secondary-bg-color, #f0f0f0);
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 10px;
         }
-        .inventory-container.active {
+
+        .inventory.active {
             display: block;
         }
-        .leaderboard {
-            margin-top: 20px;
+
+        .pet-card {
+            background-color: var(--tg-theme-bg-color, #ffffff);
             padding: 10px;
-            background-color: var(--tg-theme-secondary-bg-color, #f5f5f5);
-            border-radius: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border: 1px solid var(--tg-theme-button-color, #50a8eb);
         }
+
+        .pet-card.equipped {
+            border: 2px solid #4CAF50;
+        }
+
+        .pet-info {
+            margin-bottom: 5px;
+        }
+
         .pet-limit {
             background-color: var(--tg-theme-secondary-bg-color, #eee);
             padding: 10px;
@@ -51,60 +90,41 @@
             border-radius: 8px;
             text-align: center;
             font-weight: bold;
-        }
-        button[disabled] {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-        .pet-card {
-            margin: 10px 0;
-            padding: 10px;
-            border: 1px solid var(--tg-theme-button-color, #50a8eb);
-            border-radius: 8px;
-        }
-        .pet-stats {
-            font-size: 0.9em;
-            color: var(--tg-theme-hint-color, #999);
-            margin-top: 5px;
+            color: var(--tg-theme-text-color, #000000);
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div>
-            <p>Клики: <span id="clicks">0</span></p>
-            <p>Сила клика: <span id="click-power">1</span></p>
-            <p>Пассивный доход: <span id="passive-income">0</span>/сек</p>
-        </div>
-
-        <button class="click-button" id="click-button">Клик!</button>
-
-        <div>
-            <button class="click-button" id="upgrade-click">Улучшить клик (<span id="click-cost">50</span>)</button>
-            <button class="click-button" id="upgrade-passive">Улучшить доход (<span id="passive-cost">100</span>)</button>
-        </div>
-
-        <button class="click-button" id="toggle-inventory">Инвентарь</button>
-
-        <div class="inventory-container" id="inventory">
-            <button class="click-button" id="box-button">Открыть бокс (500)</button>
-            <div id="equipped-pets"></div>
-        </div>
-
-        <div class="leaderboard">
-            <h3>Таблица лидеров</h3>
-            <div id="leaderboard-body"></div>
-        </div>
-
-        <div class="stats-container">
-            <div class="pet-limit">
-                Питомцев экипировано: <span id="equipped-count">0</span>/<span id="max-pets">2</span>
-            </div>
+    <div class="stats">
+        <div>Клики: <span id="clicks">0</span></div>
+        <div>Сила клика: <span id="click-power">1</span></div>
+        <div>Пассивный доход: <span id="passive-income">0</span>/сек</div>
+        <div class="pet-limit">
+            Питомцев экипировано: <span id="equipped-count">0</span>/<span id="max-pets">2</span>
         </div>
     </div>
 
+    <button class="click-button" id="click-button">Клик!</button>
+
+    <button class="upgrade-button" id="upgrade-click">
+        Улучшить силу клика (Цена: <span id="click-cost">50</span>)
+    </button>
+
+    <button class="upgrade-button" id="upgrade-passive">
+        Улучшить пассивный доход (Цена: <span id="passive-cost">100</span>)
+    </button>
+
+    <button class="upgrade-button" id="box-button">
+        Открыть бокс с питомцем (Цена: 500)
+    </button>
+
+    <button class="inventory-button" id="toggle-inventory">Инвентарь</button>
+
+    <div class="inventory" id="inventory">
+        <div id="equipped-pets"></div>
+    </div>
+
     <script>
-        // Основные элементы
         const clickButton = document.getElementById('click-button');
         const clicksElement = document.getElementById('clicks');
         const clickPowerElement = document.getElementById('click-power');
@@ -112,7 +132,6 @@
         const inventoryButton = document.getElementById('toggle-inventory');
         const inventoryContainer = document.getElementById('inventory');
 
-        // Получаем user_id из URL
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('user_id');
 
@@ -131,15 +150,12 @@
             }
         }
 
-        // Обработка клика
+        // Клик без задержек
         clickButton.addEventListener('click', () => {
             const currentClicks = parseInt(clicksElement.textContent) || 0;
             const clickPower = parseInt(clickPowerElement.textContent) || 1;
-            
-            // Мгновенное обновление
             clicksElement.textContent = currentClicks + clickPower;
             
-            // Отправка на сервер без ожидания
             sendAction('click');
         });
 
@@ -149,7 +165,6 @@
             const cost = parseInt(document.getElementById('click-cost').textContent) || 50;
             
             if (currentClicks >= cost) {
-                // Мгновенное обновление
                 clicksElement.textContent = currentClicks - cost;
                 clickPowerElement.textContent = parseInt(clickPowerElement.textContent) + 1;
                 document.getElementById('click-cost').textContent = 
@@ -167,7 +182,6 @@
             const cost = parseInt(document.getElementById('passive-cost').textContent) || 100;
             
             if (currentClicks >= cost) {
-                // Мгновенное обновление
                 clicksElement.textContent = currentClicks - cost;
                 passiveIncomeElement.textContent = parseInt(passiveIncomeElement.textContent) + 1;
                 document.getElementById('passive-cost').textContent = 
@@ -180,18 +194,19 @@
         });
 
         // Открытие бокса
-        document.getElementById('box-button').addEventListener('click', async () => {
+        document.getElementById('box-button').addEventListener('click', () => {
             const currentClicks = parseInt(clicksElement.textContent) || 0;
             
             if (currentClicks >= 500) {
-                // Мгновенное обновление
                 clicksElement.textContent = currentClicks - 500;
                 
-                const result = await sendAction('box');
-                if (result && result.success) {
-                    alert(`Вы получили питомца: ${result.pet_info.name}!\nБонус к клику: +${result.pet_info.click_power}\nБонус к пассивному доходу: +${result.pet_info.passive_power}\nРедкость: ${result.pet_info.rarity}`);
-                    updateInventory(result.user_stats);
-                }
+                sendAction('box').then(result => {
+                    if (result && result.success) {
+                        const pet = result.pet_info;
+                        alert(`Вы получили питомца: ${pet.name}!\nМножитель клика: x${pet.click_multiplier}\nМножитель дохода: x${pet.passive_multiplier}\nРедкость: ${pet.rarity}`);
+                        updateInventory(result.user_stats);
+                    }
+                });
             } else {
                 alert('Недостаточно кликов! Нужно 500');
             }
@@ -199,12 +214,20 @@
 
         // Функции для питомцев
         function equipPet(pet) {
+            const equippedCount = document.querySelectorAll('.pet-card.equipped').length;
+            if (equippedCount >= 2) {
+                alert('Максимум можно экипировать 2 питомца!');
+                return;
+            }
+            
             const petCard = document.querySelector(`[data-pet="${pet}"]`);
             if (petCard) {
                 petCard.classList.add('equipped');
                 petCard.querySelector('button').textContent = 'Снять';
                 petCard.querySelector('button').onclick = () => unequipPet(pet);
             }
+            
+            document.getElementById('equipped-count').textContent = equippedCount + 1;
             sendAction('equip_pet', { pet });
         }
 
@@ -215,6 +238,9 @@
                 petCard.querySelector('button').textContent = 'Экипировать';
                 petCard.querySelector('button').onclick = () => equipPet(pet);
             }
+            
+            const equippedCount = document.querySelectorAll('.pet-card.equipped').length;
+            document.getElementById('equipped-count').textContent = equippedCount - 1;
             sendAction('unequip_pet', { pet });
         }
 
@@ -223,11 +249,10 @@
             if (!data || !data.inventory) return;
             
             const petsElement = document.getElementById('equipped-pets');
-            const equippedCount = document.getElementById('equipped-count');
             petsElement.innerHTML = '';
             
-            // Обновляем счетчик питомцев
-            equippedCount.textContent = data.equipped_pets ? data.equipped_pets.length : 0;
+            const equippedCount = data.equipped_pets ? data.equipped_pets.length : 0;
+            document.getElementById('equipped-count').textContent = equippedCount;
             
             data.inventory.forEach(pet => {
                 const petCard = document.createElement('div');
@@ -251,7 +276,7 @@
                                 </div>
                             </div>
                             <button onclick="${isEquipped ? 'unequipPet' : 'equipPet'}('${pet}')"
-                                    ${!isEquipped && data.equipped_pets && data.equipped_pets.length >= 2 ? 'disabled' : ''}>
+                                    ${!isEquipped && equippedCount >= 2 ? 'disabled' : ''}>
                                 ${isEquipped ? 'Снять' : 'Экипировать'}
                             </button>
                         `;
@@ -293,7 +318,6 @@
             }
         }
 
-        // Загружаем статистику при старте
         loadStats();
     </script>
 </body>
