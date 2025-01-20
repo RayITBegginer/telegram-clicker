@@ -24,11 +24,16 @@ def index():
         return 'Требуется user_id'
     return render_template('index.html')
 
-@app.route('/api/stats')
+@app.route('/api/stats', methods=['GET', 'POST'])
 def get_stats():
-    user_id = request.args.get('user_id')
+    if request.method == 'GET':
+        user_id = request.args.get('user_id')
+    else:
+        user_id = request.json.get('user_id')
+    
     if not user_id:
         return jsonify({'error': 'No user_id provided'}), 400
+    
     stats = db.get_user_stats(user_id)
     stats['max_pets'] = MAX_EQUIPPED_PETS
     return jsonify(stats)
