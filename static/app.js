@@ -88,6 +88,8 @@ async function equipPet(pet) {
     const result = await sendAction('equip_pet', { pet });
     if (result && !result.error) {
         updateInventory(result);
+        // Обновляем статистику сразу после экипировки
+        loadStats();
     }
 }
 
@@ -95,6 +97,8 @@ async function unequipPet(pet) {
     const result = await sendAction('unequip_pet', { pet });
     if (result && !result.error) {
         updateInventory(result);
+        // Обновляем статистику сразу после снятия
+        loadStats();
     }
 }
 
@@ -157,19 +161,28 @@ setInterval(() => {
 
 // Начальная загрузка
 async function loadStats() {
-    const response = await fetch(`/api/stats?user_id=${userId}`);
-    const data = await response.json();
-    if (data) {
-        clicksElement.textContent = data.clicks;
-        clickPowerElement.textContent = data.click_power;
-        passiveIncomeElement.textContent = data.passive_income;
-        
-        document.getElementById('click-cost').textContent = 
-            Math.floor(50 * Math.pow(1.5, data.click_power - 1));
-        document.getElementById('passive-cost').textContent = 
-            Math.floor(100 * Math.pow(1.5, data.passive_income));
-        
-        updateInventory(data);
+    try {
+        const response = await fetch(`/api/stats?user_id=${userId}`);
+        const data = await response.json();
+        if (data) {
+            clicksElement.textContent = data.clicks;
+            clickPowerElement.textContent = data.click_power;
+            passiveIncomeElement.textContent = data.passive_income;
+            
+            document.getElementById('click-cost').textContent = 
+                Math.floor(50 * Math.pow(1.5, data.click_power - 1));
+            document.getElementById('passive-cost').textContent = 
+                Math.floor(100 * Math.pow(1.5, data.passive_income));
+            
+            updateInventory(data);
+            
+            // Автоматически сохраняем каждые 30 секунд
+            setInterval(() => {
+                sendAction('stats', data);
+            }, 30000);
+        }
+    } catch (error) {
+        console.error('Error loading stats:', error);
     }
 }
 

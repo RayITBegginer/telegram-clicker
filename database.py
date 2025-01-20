@@ -37,9 +37,19 @@ class Database:
             self.save()
 
     def save(self):
-        """Сохранение базы данных"""
-        with open(self.filename, 'w', encoding='utf-8') as f:
-            json.dump(self.users, f, ensure_ascii=False, indent=2)
+        """Безопасное сохранение базы данных"""
+        try:
+            # Создаем временный файл
+            temp_file = f"{self.filename}.tmp"
+            with open(temp_file, 'w', encoding='utf-8') as f:
+                json.dump(self.users, f, ensure_ascii=False, indent=2)
+            
+            # Безопасно заменяем основной файл
+            os.replace(temp_file, self.filename)
+            return True
+        except Exception as e:
+            print(f"Error saving database: {e}")
+            return False
 
     def get_user_stats(self, user_id: str) -> Dict[str, Any]:
         """Получение статистики пользователя"""
@@ -74,8 +84,10 @@ class Database:
         user = self.get_user_stats(user_id)
         click_mult, _ = self.calculate_multipliers(user)
         
-        user['clicks'] += int(user['click_power'] * click_mult)
-        self.save()
+        # Округляем до целого числа после умножения
+        total_power = round(user['click_power'] * click_mult)
+        user['clicks'] += total_power
+        self.save()  # Сохраняем после каждого действия
         return user
 
     def upgrade_click(self, user_id: str) -> Dict[str, Any]:
@@ -142,9 +154,10 @@ class Database:
         _, passive_mult = self.calculate_multipliers(user)
         
         if user['passive_income'] > 0:
-            income = int(user['passive_income'] * passive_mult)
+            # Округляем до целого числа после умножения
+            income = round(user['passive_income'] * passive_mult)
             user['clicks'] += income
-            self.save()
+            self.save()  # Сохраняем после каждого действия
             return user
         return None
 
