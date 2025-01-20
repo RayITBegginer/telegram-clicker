@@ -52,7 +52,7 @@ class Database:
             return False
 
     def get_user_stats(self, user_id: str) -> Dict[str, Any]:
-        """Получение статистики пользователя"""
+        """Получение статистики пользователя с подсчетом питомцев"""
         user_id = str(user_id)
         if user_id not in self.users:
             self.users[user_id] = {
@@ -65,6 +65,20 @@ class Database:
                 'last_save': 0     # Timestamp последнего сохранения
             }
             self.save()
+        
+        # Подсчитываем количество каждого питомца
+        pet_counts = {}
+        for pet in self.users[user_id]['inventory']:
+            pet_counts[pet] = pet_counts.get(pet, 0) + 1
+        
+        # Добавляем счетчики в статистику
+        self.users[user_id]['pet_counts'] = pet_counts
+        
+        # Добавляем текущие множители в статистику
+        click_mult, passive_mult = self.calculate_multipliers(self.users[user_id])
+        self.users[user_id]['current_click_power'] = round(self.users[user_id]['click_power'] * click_mult)
+        self.users[user_id]['current_passive_income'] = round(self.users[user_id]['passive_income'] * passive_mult)
+        
         return self.users[user_id]
 
     def calculate_multipliers(self, user: Dict) -> tuple:
@@ -80,14 +94,20 @@ class Database:
         return click_multiplier, passive_multiplier
 
     def click(self, user_id: str) -> Dict[str, Any]:
-        """Обработка клика с учетом множителей"""
+        """Обработка клика с множителями"""
         user = self.get_user_stats(user_id)
         click_mult, _ = self.calculate_multipliers(user)
         
-        # Округляем до целого числа после умножения
+        # Применяем множитель к силе клика
         total_power = round(user['click_power'] * click_mult)
         user['clicks'] += total_power
-        self.save()  # Сохраняем после каждого действия
+        
+        # Обновляем текущие значения с множителями
+        user['current_click_power'] = total_power
+        _, passive_mult = self.calculate_multipliers(user)
+        user['current_passive_income'] = round(user['passive_income'] * passive_mult)
+        
+        self.save()
         return user
 
     def upgrade_click(self, user_id: str) -> Dict[str, Any]:
@@ -130,11 +150,17 @@ class Database:
         return None
 
     def equip_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
-        """Экипировка питомца"""
+        """Экипировка питомца с обновлением множителей"""
         user = self.get_user_stats(user_id)
         if pet in user['inventory'] and pet not in user['equipped_pets']:
             if len(user['equipped_pets']) < MAX_EQUIPPED_PETS:
                 user['equipped_pets'].append(pet)
+                
+                # Обновляем текущие значения с новыми множителями
+                click_mult, passive_mult = self.calculate_multipliers(user)
+                user['current_click_power'] = round(user['click_power'] * click_mult)
+                user['current_passive_income'] = round(user['passive_income'] * passive_mult)
+                
                 self.save()
                 return user
         return None
@@ -149,15 +175,21 @@ class Database:
         return None
 
     def passive_income(self, user_id: str) -> Dict[str, Any]:
-        """Начисление пассивного дохода"""
+        """Начисление пассивного дохода с множителями"""
         user = self.get_user_stats(user_id)
         _, passive_mult = self.calculate_multipliers(user)
         
         if user['passive_income'] > 0:
-            # Округляем до целого числа после умножения
+            # Применяем множитель к пассивному доходу
             income = round(user['passive_income'] * passive_mult)
             user['clicks'] += income
-            self.save()  # Сохраняем после каждого действия
+            
+            # Обновляем текущие значения
+            click_mult, _ = self.calculate_multipliers(user)
+            user['current_click_power'] = round(user['click_power'] * click_mult)
+            user['current_passive_income'] = income
+            
+            self.save()
             return user
         return None
 

@@ -112,7 +112,10 @@ function updateInventory(data) {
     
     equippedCount.textContent = data.equipped_pets ? data.equipped_pets.length : 0;
     
-    data.inventory.forEach(pet => {
+    // Создаем список уникальных питомцев
+    const uniquePets = [...new Set(data.inventory)];
+    
+    uniquePets.forEach(pet => {
         const petCard = document.createElement('div');
         petCard.className = 'pet-card';
         petCard.dataset.pet = pet;
@@ -120,13 +123,15 @@ function updateInventory(data) {
         const isEquipped = data.equipped_pets && data.equipped_pets.includes(pet);
         if (isEquipped) petCard.classList.add('equipped');
         
+        const petCount = data.pet_counts[pet];
+        
         fetch('/api/pets')
             .then(response => response.json())
             .then(pets => {
                 const petInfo = pets[pet];
                 petCard.innerHTML = `
                     <div class="pet-info">
-                        🐾 ${pet}
+                        🐾 ${pet} ${petCount > 1 ? `<span class="pet-count">x${petCount}</span>` : ''}
                         <div class="pet-stats">
                             Множитель клика: x${petInfo.click_multiplier}
                             Множитель дохода: x${petInfo.passive_multiplier}
@@ -159,27 +164,28 @@ setInterval(() => {
     }
 }, 1000);
 
-// Начальная загрузка
+// Обновляем отображение статистики
+function updateStats(data) {
+    if (!data) return;
+    
+    clicksElement.textContent = data.clicks;
+    clickPowerElement.textContent = data.current_click_power || data.click_power;
+    passiveIncomeElement.textContent = data.current_passive_income || data.passive_income;
+}
+
+// Обновляем функцию загрузки статистики
 async function loadStats() {
     try {
         const response = await fetch(`/api/stats?user_id=${userId}`);
         const data = await response.json();
         if (data) {
-            clicksElement.textContent = data.clicks;
-            clickPowerElement.textContent = data.click_power;
-            passiveIncomeElement.textContent = data.passive_income;
+            updateStats(data);
+            updateInventory(data);
             
             document.getElementById('click-cost').textContent = 
                 Math.floor(50 * Math.pow(1.5, data.click_power - 1));
             document.getElementById('passive-cost').textContent = 
                 Math.floor(100 * Math.pow(1.5, data.passive_income));
-            
-            updateInventory(data);
-            
-            // Автоматически сохраняем каждые 30 секунд
-            setInterval(() => {
-                sendAction('stats', data);
-            }, 30000);
         }
     } catch (error) {
         console.error('Error loading stats:', error);
