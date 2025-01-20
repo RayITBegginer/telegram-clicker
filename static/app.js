@@ -102,6 +102,14 @@ async function unequipPet(pet) {
     }
 }
 
+async function deletePet(pet) {
+    const result = await sendAction('delete_pet', { pet });
+    if (result && !result.error) {
+        updateInventory(result);
+        loadStats();
+    }
+}
+
 // Обновление инвентаря
 function updateInventory(data) {
     if (!data || !data.inventory) return;
@@ -120,10 +128,12 @@ function updateInventory(data) {
         petCard.className = 'pet-card';
         petCard.dataset.pet = pet;
         
-        const isEquipped = data.equipped_pets && data.equipped_pets.includes(pet);
-        if (isEquipped) petCard.classList.add('equipped');
+        const equippedCount = data.equipped_pets.filter(p => p === pet).length;
+        const totalCount = data.pet_counts[pet];
+        const canEquip = equippedCount < totalCount && data.equipped_pets.length < 2;
         
-        const petCount = data.pet_counts[pet];
+        const isEquipped = equippedCount > 0;
+        if (isEquipped) petCard.classList.add('equipped');
         
         fetch('/api/pets')
             .then(response => response.json())
@@ -131,17 +141,23 @@ function updateInventory(data) {
                 const petInfo = pets[pet];
                 petCard.innerHTML = `
                     <div class="pet-info">
-                        🐾 ${pet} ${petCount > 1 ? `<span class="pet-count">x${petCount}</span>` : ''}
+                        🐾 ${pet} ${totalCount > 1 ? `<span class="pet-count">x${totalCount}</span>` : ''}
                         <div class="pet-stats">
                             Множитель клика: x${petInfo.click_multiplier}
                             Множитель дохода: x${petInfo.passive_multiplier}
                             Редкость: ${petInfo.rarity}
+                            ${equippedCount > 0 ? `<br>Экипировано: ${equippedCount}` : ''}
                         </div>
                     </div>
-                    <button onclick="${isEquipped ? 'unequipPet' : 'equipPet'}('${pet}')"
-                            ${!isEquipped && data.equipped_pets && data.equipped_pets.length >= 2 ? 'disabled' : ''}>
-                        ${isEquipped ? 'Снять' : 'Экипировать'}
-                    </button>
+                    <div class="pet-buttons">
+                        <button onclick="${isEquipped ? 'unequipPet' : 'equipPet'}('${pet}')"
+                                ${!canEquip && !isEquipped ? 'disabled' : ''}>
+                            ${isEquipped ? 'Снять' : 'Экипировать'}
+                        </button>
+                        <button class="delete-button" onclick="deletePet('${pet}')">
+                            Удалить
+                        </button>
+                    </div>
                 `;
             });
         
@@ -168,9 +184,18 @@ setInterval(() => {
 function updateStats(data) {
     if (!data) return;
     
+    // Отображаем значения с учетом множителей
     clicksElement.textContent = data.clicks;
     clickPowerElement.textContent = data.current_click_power || data.click_power;
     passiveIncomeElement.textContent = data.current_passive_income || data.passive_income;
+    
+    // Обновляем отображение базовой силы клика и множителя
+    const baseClickPower = data.click_power;
+    const currentClickPower = data.current_click_power;
+    const multiplier = currentClickPower / baseClickPower;
+    
+    // Добавляем информацию о множителе
+    clickPowerElement.textContent = `${currentClickPower} (${baseClickPower} × ${multiplier.toFixed(1)})`;
 }
 
 // Обновляем функцию загрузки статистики

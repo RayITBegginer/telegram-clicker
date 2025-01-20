@@ -82,10 +82,11 @@ class Database:
         return self.users[user_id]
 
     def calculate_multipliers(self, user: Dict) -> tuple:
-        """Подсчет множителей от питомцев"""
+        """Расчет множителей от питомцев"""
         click_multiplier = 1.0
         passive_multiplier = 1.0
         
+        # Учитываем все экипированные питомцы
         for pet in user['equipped_pets'][:MAX_EQUIPPED_PETS]:
             if pet in PETS:
                 click_multiplier *= PETS[pet]['click_multiplier']
@@ -98,14 +99,12 @@ class Database:
         user = self.get_user_stats(user_id)
         click_mult, _ = self.calculate_multipliers(user)
         
-        # Применяем множитель к силе клика
-        total_power = round(user['click_power'] * click_mult)
+        # Применяем множитель к базовой силе клика
+        total_power = int(user['click_power'] * click_mult)
         user['clicks'] += total_power
         
-        # Обновляем текущие значения с множителями
+        # Сохраняем текущую силу клика для отображения
         user['current_click_power'] = total_power
-        _, passive_mult = self.calculate_multipliers(user)
-        user['current_passive_income'] = round(user['passive_income'] * passive_mult)
         
         self.save()
         return user
@@ -150,26 +149,44 @@ class Database:
         return None
 
     def equip_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
-        """Экипировка питомца с обновлением множителей"""
+        """Экипировка питомца с возможностью экипировать одинаковых"""
         user = self.get_user_stats(user_id)
-        if pet in user['inventory'] and pet not in user['equipped_pets']:
-            if len(user['equipped_pets']) < MAX_EQUIPPED_PETS:
-                user['equipped_pets'].append(pet)
-                
-                # Обновляем текущие значения с новыми множителями
-                click_mult, passive_mult = self.calculate_multipliers(user)
-                user['current_click_power'] = round(user['click_power'] * click_mult)
-                user['current_passive_income'] = round(user['passive_income'] * passive_mult)
-                
-                self.save()
-                return user
+        if pet in user['inventory']:
+            # Проверяем, сколько таких питомцев уже экипировано
+            equipped_count = user['equipped_pets'].count(pet)
+            # Проверяем, сколько таких питомцев есть в инвентаре
+            inventory_count = user['inventory'].count(pet)
+            
+            # Можно экипировать, если есть свободные питомцы этого типа
+            if equipped_count < inventory_count:
+                if len(user['equipped_pets']) < MAX_EQUIPPED_PETS:
+                    user['equipped_pets'].append(pet)
+                    
+                    # Обновляем множители
+                    click_mult, passive_mult = self.calculate_multipliers(user)
+                    user['current_click_power'] = round(user['click_power'] * click_mult)
+                    user['current_passive_income'] = round(user['passive_income'] * passive_mult)
+                    
+                    self.save()
+                    return user
         return None
 
-    def unequip_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
-        """Снятие питомца"""
+    def delete_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
+        """Удаление питомца из инвентаря"""
         user = self.get_user_stats(user_id)
-        if pet in user['equipped_pets']:
-            user['equipped_pets'].remove(pet)
+        if pet in user['inventory']:
+            # Если питомец экипирован, сначала снимаем его
+            if pet in user['equipped_pets']:
+                user['equipped_pets'].remove(pet)
+            
+            # Удаляем из инвентаря
+            user['inventory'].remove(pet)
+            
+            # Обновляем множители
+            click_mult, passive_mult = self.calculate_multipliers(user)
+            user['current_click_power'] = round(user['click_power'] * click_mult)
+            user['current_passive_income'] = round(user['passive_income'] * passive_mult)
+            
             self.save()
             return user
         return None

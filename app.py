@@ -100,6 +100,16 @@ def passive_income():
     result = db.passive_income(user_id)
     return jsonify(result if result else {'error': 'Нет пассивного дохода'})
 
+@app.route('/api/delete_pet', methods=['POST'])
+def delete_pet():
+    """Удаление питомца"""
+    user_id = request.json.get('user_id')
+    pet = request.json.get('pet')
+    if not user_id or not pet:
+        return jsonify({'error': 'Invalid request'}), 400
+    result = db.delete_pet(user_id, pet)
+    return jsonify(result if result else {'error': 'Не удалось удалить питомца'})
+
 @app.route('/api/pets')
 def get_pets():
     """Получение информации о питомцах"""
