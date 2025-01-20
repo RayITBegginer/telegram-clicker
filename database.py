@@ -67,7 +67,18 @@ class Database:
                 'pet_counts': {}
             }
             self.save()  # Сразу сохраняем нового пользователя
-        return self.users[user_id]
+        user = self.users[user_id]
+        click_mult, passive_mult = self.calculate_multipliers(user)
+        user['current_click_power'] = round(user['click_power'] * click_mult)
+        user['current_passive_income'] = round(user['passive_income'] * passive_mult)
+        
+        # Обновляем счетчики питомцев
+        pet_counts = {}
+        for pet in user['inventory']:
+            pet_counts[pet] = pet_counts.get(pet, 0) + 1
+        user['pet_counts'] = pet_counts
+        
+        return user
 
     def calculate_multipliers(self, user: Dict) -> tuple:
         """Расчет множителей от питомцев"""
@@ -109,7 +120,7 @@ class Database:
             user['current_passive_income'] = round(user['passive_income'] * passive_mult)
             
             self.save()
-            return user
+            return self.get_user_stats(user_id)
         return None
 
     def upgrade_passive(self, user_id: str) -> Dict[str, Any]:
@@ -127,7 +138,7 @@ class Database:
             user['current_passive_income'] = round(user['passive_income'] * passive_mult)
             
             self.save()
-            return user
+            return self.get_user_stats(user_id)
         return None
 
     def open_box(self, user_id: str) -> Dict[str, Any]:
@@ -150,31 +161,23 @@ class Database:
             return {
                 'success': True,
                 'pet_info': PETS[pet],
-                'user_stats': user
+                'user_stats': self.get_user_stats(user_id)
             }
         return None
 
     def equip_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
         """Экипировка питомца с возможностью экипировать одинаковых"""
         user = self.get_user_stats(user_id)
-        if pet in user['inventory']:
-            # Проверяем, сколько таких питомцев уже экипировано
-            equipped_count = user['equipped_pets'].count(pet)
-            # Проверяем, сколько таких питомцев есть в инвентаре
-            inventory_count = user['inventory'].count(pet)
+        if pet in user['inventory'] and len(user['equipped_pets']) < MAX_EQUIPPED_PETS:
+            user['equipped_pets'].append(pet)
             
-            # Можно экипировать, если есть свободные питомцы этого типа
-            if equipped_count < inventory_count:
-                if len(user['equipped_pets']) < MAX_EQUIPPED_PETS:
-                    user['equipped_pets'].append(pet)
-                    
-                    # Обновляем множители
-                    click_mult, passive_mult = self.calculate_multipliers(user)
-                    user['current_click_power'] = round(user['click_power'] * click_mult)
-                    user['current_passive_income'] = round(user['passive_income'] * passive_mult)
-                    
-                    self.save()
-                    return user
+            # Обновляем множители
+            click_mult, passive_mult = self.calculate_multipliers(user)
+            user['current_click_power'] = round(user['click_power'] * click_mult)
+            user['current_passive_income'] = round(user['passive_income'] * passive_mult)
+            
+            self.save()
+            return self.get_user_stats(user_id)
         return None
 
     def delete_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
@@ -194,7 +197,7 @@ class Database:
             user['current_passive_income'] = round(user['passive_income'] * passive_mult)
             
             self.save()
-            return user
+            return self.get_user_stats(user_id)
         return None
 
     def passive_income(self, user_id: str) -> Dict[str, Any]:
@@ -213,7 +216,7 @@ class Database:
             user['current_passive_income'] = income
             
             self.save()
-            return user
+            return self.get_user_stats(user_id)
         return None
 
     def create_user(self, user_id):
@@ -314,5 +317,5 @@ class Database:
             user['current_passive_income'] = round(user['passive_income'] * passive_mult)
             
             self.save()
-            return user
+            return self.get_user_stats(user_id)
         return None 
