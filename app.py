@@ -115,5 +115,15 @@ def get_pets():
     """Получение информации о питомцах"""
     return jsonify(PETS)
 
+@app.route('/api/equip_all_same', methods=['POST'])
+def equip_all_same():
+    """Экипировка всех одинаковых питомцев"""
+    user_id = request.json.get('user_id')
+    pet = request.json.get('pet')
+    if not user_id or not pet:
+        return jsonify({'error': 'Invalid request'}), 400
+    result = db.equip_all_same(user_id, pet)
+    return jsonify(result if result else {'error': 'Не удалось экипировать питомцев'})
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000) 

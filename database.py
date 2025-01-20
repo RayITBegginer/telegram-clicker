@@ -54,10 +54,8 @@ class Database:
             return False
 
     def get_user_stats(self, user_id: str) -> Dict[str, Any]:
-        """Получение статистики пользователя"""
         user_id = str(user_id)
         if user_id not in self.users:
-            # Создаем нового пользователя
             self.users[user_id] = {
                 'clicks': 0,
                 'click_power': 1,
@@ -66,17 +64,20 @@ class Database:
                 'equipped_pets': [],
                 'pet_counts': {}
             }
-            self.save()  # Сразу сохраняем нового пользователя
+            self.save()
+        
         user = self.users[user_id]
-        click_mult, passive_mult = self.calculate_multipliers(user)
-        user['current_click_power'] = round(user['click_power'] * click_mult)
-        user['current_passive_income'] = round(user['passive_income'] * passive_mult)
         
         # Обновляем счетчики питомцев
         pet_counts = {}
         for pet in user['inventory']:
             pet_counts[pet] = pet_counts.get(pet, 0) + 1
         user['pet_counts'] = pet_counts
+        
+        # Пересчитываем множители и текущие значения
+        click_mult, passive_mult = self.calculate_multipliers(user)
+        user['current_click_power'] = round(user['click_power'] * click_mult)
+        user['current_passive_income'] = round(user['passive_income'] * passive_mult)
         
         return user
 
@@ -106,7 +107,7 @@ class Database:
         return user
 
     def upgrade_click(self, user_id: str) -> Dict[str, Any]:
-        """Улучшение силы клика с обновлением множителей"""
+        """Улучшение силы клика с автоматическим обновлением множителей"""
         user = self.get_user_stats(user_id)
         cost = int(50 * (1.5 ** (user['click_power'] - 1)))
         
@@ -114,17 +115,16 @@ class Database:
             user['clicks'] -= cost
             user['click_power'] += 1
             
-            # Пересчитываем множители
-            click_mult, passive_mult = self.calculate_multipliers(user)
+            # Автоматически обновляем множители
+            click_mult, _ = self.calculate_multipliers(user)
             user['current_click_power'] = round(user['click_power'] * click_mult)
-            user['current_passive_income'] = round(user['passive_income'] * passive_mult)
             
             self.save()
             return self.get_user_stats(user_id)
         return None
 
     def upgrade_passive(self, user_id: str) -> Dict[str, Any]:
-        """Улучшение пассивного дохода с обновлением множителей"""
+        """Улучшение пассивного дохода с автоматическим обновлением множителей"""
         user = self.get_user_stats(user_id)
         cost = int(100 * (1.5 ** user['passive_income']))
         
@@ -132,9 +132,8 @@ class Database:
             user['clicks'] -= cost
             user['passive_income'] += 1
             
-            # Пересчитываем множители
-            click_mult, passive_mult = self.calculate_multipliers(user)
-            user['current_click_power'] = round(user['click_power'] * click_mult)
+            # Автоматически обновляем множители
+            _, passive_mult = self.calculate_multipliers(user)
             user['current_passive_income'] = round(user['passive_income'] * passive_mult)
             
             self.save()
@@ -166,16 +165,43 @@ class Database:
         return None
 
     def equip_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
-        """Экипировка питомца с возможностью экипировать одинаковых"""
+        """Экипировка питомца"""
         user = self.get_user_stats(user_id)
-        if pet in user['inventory'] and len(user['equipped_pets']) < MAX_EQUIPPED_PETS:
+        
+        # Проверяем количество в инвентаре и уже экипированных
+        pet_count_in_inventory = user['inventory'].count(pet)
+        pet_count_equipped = user['equipped_pets'].count(pet)
+        
+        # Можно экипировать, если есть в инвентаре и есть место
+        if (pet in user['inventory'] and 
+            len(user['equipped_pets']) < MAX_EQUIPPED_PETS and 
+            pet_count_equipped < pet_count_in_inventory):
+            
             user['equipped_pets'].append(pet)
+            self.save()
+            return self.get_user_stats(user_id)
+        return None
+
+    def equip_all_same(self, user_id: str, pet: str) -> Dict[str, Any]:
+        """Экипировка всех одинаковых питомцев"""
+        user = self.get_user_stats(user_id)
+        
+        # Сколько можно экипировать
+        available_slots = MAX_EQUIPPED_PETS - len(user['equipped_pets'])
+        if available_slots <= 0:
+            return None
             
-            # Обновляем множители
-            click_mult, passive_mult = self.calculate_multipliers(user)
-            user['current_click_power'] = round(user['click_power'] * click_mult)
-            user['current_passive_income'] = round(user['passive_income'] * passive_mult)
-            
+        # Сколько неэкипированных питомцев этого типа
+        total_count = user['inventory'].count(pet)
+        equipped_count = user['equipped_pets'].count(pet)
+        unequipped_count = total_count - equipped_count
+        
+        # Экипируем максимально возможное количество
+        to_equip = min(available_slots, unequipped_count)
+        
+        if to_equip > 0:
+            for _ in range(to_equip):
+                user['equipped_pets'].append(pet)
             self.save()
             return self.get_user_stats(user_id)
         return None
