@@ -19,43 +19,53 @@ MAX_EQUIPPED_PETS = 2
 
 class Database:
     def __init__(self):
-        """Инициализация базы данных с проверкой файла"""
+        """Инициализация базы данных"""
         self.filename = 'database.json'
         self.users = {}
-        self.load()  # Загружаем существующие данные при старте
+        # Загружаем существующие данные при старте
+        self.load()
 
     def load(self):
-        """Загрузка базы данных"""
+        """Загрузка данных из файла"""
         try:
             if os.path.exists(self.filename):
                 with open(self.filename, 'r', encoding='utf-8') as f:
-                    self.users = json.load(f)
+                    data = json.load(f)
+                    if isinstance(data, dict):  # Проверяем, что данные корректные
+                        self.users = data
+                    else:
+                        print("Invalid data format in database.json")
+                        self.users = {}
             else:
-                # Если файла нет, создаем его
-                self.save()
+                print("Creating new database file")
+                self.users = {}
+                self.save()  # Создаем файл, если его нет
         except Exception as e:
             print(f"Error loading database: {e}")
-            # В случае ошибки создаем новый файл
-            self.save()
+            self.users = {}
 
     def save(self):
-        """Безопасное сохранение базы данных"""
+        """Надежное сохранение данных"""
         try:
-            # Создаем временный файл
-            temp_file = f"{self.filename}.tmp"
-            with open(temp_file, 'w', encoding='utf-8') as f:
+            # Сначала сохраняем во временный файл
+            temp_filename = f"{self.filename}.tmp"
+            with open(temp_filename, 'w', encoding='utf-8') as f:
                 json.dump(self.users, f, ensure_ascii=False, indent=2)
             
-            # Безопасно заменяем основной файл
-            os.replace(temp_file, self.filename)
-            return True
+            # Если временный файл создан успешно, заменяем основной файл
+            if os.path.exists(temp_filename):
+                os.replace(temp_filename, self.filename)
+                return True
+            return False
         except Exception as e:
             print(f"Error saving database: {e}")
             return False
 
     def get_user_stats(self, user_id: str) -> Dict[str, Any]:
+        """Получение статистики пользователя"""
         user_id = str(user_id)
         if user_id not in self.users:
+            # Создаем нового пользователя только если его нет в базе
             self.users[user_id] = {
                 'clicks': 0,
                 'click_power': 1,
@@ -64,22 +74,8 @@ class Database:
                 'equipped_pets': [],
                 'pet_counts': {}
             }
-            self.save()
-        
-        user = self.users[user_id]
-        
-        # Обновляем счетчики питомцев
-        pet_counts = {}
-        for pet in user['inventory']:
-            pet_counts[pet] = pet_counts.get(pet, 0) + 1
-        user['pet_counts'] = pet_counts
-        
-        # Пересчитываем множители и текущие значения
-        click_mult, passive_mult = self.calculate_multipliers(user)
-        user['current_click_power'] = round(user['click_power'] * click_mult)
-        user['current_passive_income'] = round(user['passive_income'] * passive_mult)
-        
-        return user
+            self.save()  # Сохраняем после создания нового пользователя
+        return self.users[user_id]
 
     def calculate_multipliers(self, user: Dict) -> tuple:
         """Расчет множителей от питомцев"""
