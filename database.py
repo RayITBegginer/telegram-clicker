@@ -51,7 +51,7 @@ class Database:
             return False
 
     def get_user_stats(self, user_id: str) -> Dict[str, Any]:
-        """Получение статистики пользователя с автоматическим созданием"""
+        """Получение статистики пользователя с актуальными множителями"""
         user_id = str(user_id)
         if user_id not in self.users:
             self.users[user_id] = {
@@ -63,7 +63,23 @@ class Database:
                 'pet_counts': {}
             }
             self.save()
-        return self.users[user_id]
+        
+        user = self.users[user_id]
+        
+        # Пересчитываем множители
+        click_mult, passive_mult = self.calculate_multipliers(user)
+        
+        # Обновляем текущие значения с учетом множителей
+        user['current_click_power'] = round(user['click_power'] * click_mult, 1)
+        user['current_passive_income'] = round(user['passive_income'] * passive_mult, 1)
+        
+        # Обновляем счетчики питомцев
+        pet_counts = {}
+        for pet in user['inventory']:
+            pet_counts[pet] = pet_counts.get(pet, 0) + 1
+        user['pet_counts'] = pet_counts
+        
+        return user
 
     def update_user(self, user_id: str, data: Dict[str, Any]) -> bool:
         """Безопасное обновление данных пользователя"""
@@ -130,19 +146,16 @@ class Database:
         return None
 
     def equip_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
-        """Экипировка питомца"""
+        """Экипировка питомца с обновлением множителей"""
         user = self.get_user_stats(user_id)
-        
-        # Проверяем количество в инвентаре и уже экипированных
-        pet_count_in_inventory = user['inventory'].count(pet)
-        pet_count_equipped = user['equipped_pets'].count(pet)
-        
-        # Можно экипировать, если есть в инвентаре и есть место
-        if (pet in user['inventory'] and 
-            len(user['equipped_pets']) < MAX_EQUIPPED_PETS and 
-            pet_count_equipped < pet_count_in_inventory):
-            
+        if pet in user['inventory'] and len(user['equipped_pets']) < MAX_EQUIPPED_PETS:
             user['equipped_pets'].append(pet)
+            
+            # Пересчитываем множители сразу после экипировки
+            click_mult, passive_mult = self.calculate_multipliers(user)
+            user['current_click_power'] = round(user['click_power'] * click_mult, 1)
+            user['current_passive_income'] = round(user['passive_income'] * passive_mult, 1)
+            
             self.save()
             return user
         return None
@@ -288,15 +301,15 @@ class Database:
         }
 
     def unequip_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
-        """Снятие питомца"""
+        """Снятие питомца с обновлением множителей"""
         user = self.get_user_stats(user_id)
         if pet in user['equipped_pets']:
             user['equipped_pets'].remove(pet)
             
-            # Пересчитываем множители
+            # Пересчитываем множители сразу после снятия
             click_mult, passive_mult = self.calculate_multipliers(user)
-            user['current_click_power'] = round(user['click_power'] * click_mult)
-            user['current_passive_income'] = round(user['passive_income'] * passive_mult)
+            user['current_click_power'] = round(user['click_power'] * click_mult, 1)
+            user['current_passive_income'] = round(user['passive_income'] * passive_mult, 1)
             
             self.save()
             return user
@@ -307,10 +320,10 @@ class Database:
         click_multiplier = 1.0
         passive_multiplier = 1.0
         
-        # Учитываем все экипированные питомцы
-        for pet in user['equipped_pets'][:MAX_EQUIPPED_PETS]:
-            if pet in PETS:
-                click_multiplier *= PETS[pet]['click_multiplier']
-                passive_multiplier *= PETS[pet]['passive_multiplier']
+        if 'equipped_pets' in user:
+            for pet in user['equipped_pets']:
+                if pet in PETS:
+                    click_multiplier *= PETS[pet]['click_multiplier']
+                    passive_multiplier *= PETS[pet]['passive_multiplier']
         
         return click_multiplier, passive_multiplier 
