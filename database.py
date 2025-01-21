@@ -1,3 +1,4 @@
+import sqlite3
 import json
 import os
 from datetime import datetime
@@ -23,45 +24,67 @@ class Database:
         self.filename = 'database.json'
         self.users = {}
         self.load()
-        print("Database initialized")  # Отладка
 
     def load(self):
-        """Загрузка данных из файла"""
+        """Загрузка данных из файла с обработкой ошибок"""
         try:
             if os.path.exists(self.filename):
                 with open(self.filename, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     if isinstance(data, dict):
                         self.users = data
-                        print(f"Loaded data: {self.users}")  # Отладка
+                        print(f"Successfully loaded data for {len(self.users)} users")
                     else:
-                        print("Creating new database - invalid format")
+                        print("Warning: Invalid data format, creating new database")
                         self.users = {}
             else:
                 print("Creating new database file")
                 self.users = {}
-                self.save()
         except Exception as e:
             print(f"Error loading database: {e}")
+            # Создаем резервную копию проблемного файла
+            if os.path.exists(self.filename):
+                backup_name = f"{self.filename}.backup"
+                os.rename(self.filename, backup_name)
+                print(f"Created backup of corrupted database: {backup_name}")
             self.users = {}
+        finally:
+            # Всегда сохраняем после загрузки, чтобы убедиться в целостности файла
+            self.save()
 
     def save(self):
-        """Сохранение данных"""
+        """Безопасное сохранение с использованием временного файла"""
+        temp_file = f"{self.filename}.temp"
+        backup_file = f"{self.filename}.backup"
+        
         try:
-            # Прямое сохранение в файл
-            with open(self.filename, 'w', encoding='utf-8') as f:
+            # Сначала сохраняем во временный файл
+            with open(temp_file, 'w', encoding='utf-8') as f:
                 json.dump(self.users, f, ensure_ascii=False, indent=2)
-            print(f"Saved data: {self.users}")  # Отладка
+            
+            # Создаем резервную копию текущего файла, если он существует
+            if os.path.exists(self.filename):
+                os.replace(self.filename, backup_file)
+            
+            # Заменяем основной файл временным
+            os.replace(temp_file, self.filename)
+            
+            # Удаляем резервную копию только после успешного сохранения
+            if os.path.exists(backup_file):
+                os.remove(backup_file)
+                
             return True
         except Exception as e:
             print(f"Error saving database: {e}")
+            # В случае ошибки пытаемся восстановить из резервной копии
+            if os.path.exists(backup_file):
+                os.replace(backup_file, self.filename)
             return False
 
     def get_user_stats(self, user_id: str) -> Dict[str, Any]:
-        """Получение статистики пользователя"""
+        """Получение статистики пользователя с автоматическим созданием"""
         user_id = str(user_id)
         if user_id not in self.users:
-            print(f"Creating new user: {user_id}")  # Отладка
             self.users[user_id] = {
                 'clicks': 0,
                 'click_power': 1,
@@ -70,28 +93,33 @@ class Database:
                 'equipped_pets': [],
                 'pet_counts': {}
             }
-            self.save()
+            self.save()  # Сохраняем сразу после создания нового пользователя
         return self.users[user_id]
 
-    def calculate_multipliers(self, user: Dict) -> tuple:
-        """Расчет множителей от питомцев"""
-        click_multiplier = 1.0
-        passive_multiplier = 1.0
-        
-        # Учитываем все экипированные питомцы
-        for pet in user['equipped_pets'][:MAX_EQUIPPED_PETS]:
-            if pet in PETS:
-                click_multiplier *= PETS[pet]['click_multiplier']
-                passive_multiplier *= PETS[pet]['passive_multiplier']
-        
-        return click_multiplier, passive_multiplier
+    def update_user(self, user_id: str, data: Dict[str, Any]) -> bool:
+        """Безопасное обновление данных пользователя"""
+        user_id = str(user_id)
+        if user_id in self.users:
+            self.users[user_id].update(data)
+            return self.save()
+        return False
 
     def click(self, user_id: str) -> Dict[str, Any]:
         """Обработка клика"""
-        user = self.get_user_stats(user_id)
-        user['clicks'] += user['click_power']
-        self.save()  # Сохраняем после каждого клика
-        return user
+        with sqlite3.connect(self.db_name) as conn:
+            cursor = conn.cursor()
+            
+            # Получаем текущую силу клика
+            cursor.execute('''
+                UPDATE users 
+                SET clicks = clicks + click_power,
+                    last_updated = CURRENT_TIMESTAMP
+                WHERE user_id = ?
+                RETURNING *
+            ''', (user_id,))
+            
+            conn.commit()
+            return self.get_user_stats(user_id)
 
     def upgrade_click(self, user_id: str) -> Dict[str, Any]:
         """Улучшение силы клика с автоматическим обновлением множителей"""
@@ -253,15 +281,6 @@ class Database:
             self.save()
         return self.users[str_id]
 
-    def update_user(self, user_id, data):
-        str_id = str(user_id)
-        if str_id in self.users:
-            self.users[str_id].update(data)
-            self.users[str_id]['last_save'] = datetime.now().isoformat()
-            self.save()
-            return True
-        return False
-
     def get_achievements(self, user_id):
         user = self.get_user_stats(user_id)
         return user.get('achievements', {})
@@ -337,4 +356,17 @@ class Database:
             
             self.save()
             return self.get_user_stats(user_id)
-        return None 
+        return None
+
+    def calculate_multipliers(self, user: Dict) -> tuple:
+        """Расчет множителей от питомцев"""
+        click_multiplier = 1.0
+        passive_multiplier = 1.0
+        
+        # Учитываем все экипированные питомцы
+        for pet in user['equipped_pets'][:MAX_EQUIPPED_PETS]:
+            if pet in PETS:
+                click_multiplier *= PETS[pet]['click_multiplier']
+                passive_multiplier *= PETS[pet]['passive_multiplier']
+        
+        return click_multiplier, passive_multiplier 
