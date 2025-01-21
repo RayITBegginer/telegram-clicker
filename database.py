@@ -21,9 +21,12 @@ MAX_EQUIPPED_PETS = 2
 class Database:
     def __init__(self):
         """Инициализация базы данных"""
-        self.filename = 'database.json'
+        # Получаем путь к директории, где находится скрипт
+        self.base_dir = os.path.dirname(os.path.abspath(__file__))
+        self.filename = os.path.join(self.base_dir, 'database.json')
         self.users = {}
         self.load()
+        print(f"Database initialized at {self.filename}")
 
     def load(self):
         """Загрузка данных из файла с обработкой ошибок"""
