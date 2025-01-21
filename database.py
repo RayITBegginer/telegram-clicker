@@ -30,55 +30,21 @@ class Database:
         try:
             if os.path.exists(self.filename):
                 with open(self.filename, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                    if isinstance(data, dict):
-                        self.users = data
-                        print(f"Successfully loaded data for {len(self.users)} users")
-                    else:
-                        print("Warning: Invalid data format, creating new database")
-                        self.users = {}
-            else:
-                print("Creating new database file")
-                self.users = {}
+                    self.users = json.load(f)
+                print("Database loaded successfully")
         except Exception as e:
             print(f"Error loading database: {e}")
-            # Создаем резервную копию проблемного файла
-            if os.path.exists(self.filename):
-                backup_name = f"{self.filename}.backup"
-                os.rename(self.filename, backup_name)
-                print(f"Created backup of corrupted database: {backup_name}")
             self.users = {}
-        finally:
-            # Всегда сохраняем после загрузки, чтобы убедиться в целостности файла
-            self.save()
 
     def save(self):
         """Безопасное сохранение с использованием временного файла"""
-        temp_file = f"{self.filename}.temp"
-        backup_file = f"{self.filename}.backup"
-        
         try:
-            # Сначала сохраняем во временный файл
-            with open(temp_file, 'w', encoding='utf-8') as f:
+            with open(self.filename, 'w', encoding='utf-8') as f:
                 json.dump(self.users, f, ensure_ascii=False, indent=2)
-            
-            # Создаем резервную копию текущего файла, если он существует
-            if os.path.exists(self.filename):
-                os.replace(self.filename, backup_file)
-            
-            # Заменяем основной файл временным
-            os.replace(temp_file, self.filename)
-            
-            # Удаляем резервную копию только после успешного сохранения
-            if os.path.exists(backup_file):
-                os.remove(backup_file)
-                
+            print("Database saved successfully")
             return True
         except Exception as e:
             print(f"Error saving database: {e}")
-            # В случае ошибки пытаемся восстановить из резервной копии
-            if os.path.exists(backup_file):
-                os.replace(backup_file, self.filename)
             return False
 
     def get_user_stats(self, user_id: str) -> Dict[str, Any]:
@@ -93,7 +59,7 @@ class Database:
                 'equipped_pets': [],
                 'pet_counts': {}
             }
-            self.save()  # Сохраняем сразу после создания нового пользователя
+            self.save()
         return self.users[user_id]
 
     def update_user(self, user_id: str, data: Dict[str, Any]) -> bool:
@@ -106,20 +72,12 @@ class Database:
 
     def click(self, user_id: str) -> Dict[str, Any]:
         """Обработка клика"""
-        with sqlite3.connect(self.db_name) as conn:
-            cursor = conn.cursor()
-            
-            # Получаем текущую силу клика
-            cursor.execute('''
-                UPDATE users 
-                SET clicks = clicks + click_power,
-                    last_updated = CURRENT_TIMESTAMP
-                WHERE user_id = ?
-                RETURNING *
-            ''', (user_id,))
-            
-            conn.commit()
-            return self.get_user_stats(user_id)
+        user = self.get_user_stats(user_id)
+        click_mult, _ = self.calculate_multipliers(user)
+        total_power = round(user['click_power'] * click_mult)
+        user['clicks'] += total_power
+        self.save()
+        return user
 
     def upgrade_click(self, user_id: str) -> Dict[str, Any]:
         """Улучшение силы клика с автоматическим обновлением множителей"""
@@ -130,12 +88,8 @@ class Database:
             user['clicks'] -= cost
             user['click_power'] += 1
             
-            # Автоматически обновляем множители
-            click_mult, _ = self.calculate_multipliers(user)
-            user['current_click_power'] = round(user['click_power'] * click_mult)
-            
             self.save()
-            return self.get_user_stats(user_id)
+            return user
         return None
 
     def upgrade_passive(self, user_id: str) -> Dict[str, Any]:
@@ -147,42 +101,29 @@ class Database:
             user['clicks'] -= cost
             user['passive_income'] += 1
             
-            # Автоматически обновляем множители
-            _, passive_mult = self.calculate_multipliers(user)
-            user['current_passive_income'] = round(user['passive_income'] * passive_mult)
-            
             self.save()
-            return self.get_user_stats(user_id)
+            return user
         return None
 
     def open_box(self, user_id: str) -> Dict[str, Any]:
         """Открытие бокса с питомцем"""
         user = self.get_user_stats(user_id)
         if user['clicks'] >= 500:
-            # Сначала снимаем клики
             user['clicks'] -= 500
-            
-            # Выбираем питомца
             pet = random.choice(list(PETS.keys()))
-            
-            # Добавляем в инвентарь
-            if 'inventory' not in user:
-                user['inventory'] = []
             user['inventory'].append(pet)
             
-            # Сохраняем изменения
-            success = self.save()
+            # Обновляем счетчики питомцев
+            if 'pet_counts' not in user:
+                user['pet_counts'] = {}
+            user['pet_counts'][pet] = user['pet_counts'].get(pet, 0) + 1
             
-            if success:
-                return {
-                    'success': True,
-                    'pet_info': PETS[pet],
-                    'user_stats': self.get_user_stats(user_id)
-                }
-            else:
-                # Возвращаем клики, если сохранение не удалось
-                user['clicks'] += 500
-                return None
+            self.save()
+            return {
+                'success': True,
+                'pet_info': PETS[pet],
+                'user_stats': user
+            }
         return None
 
     def equip_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
@@ -200,7 +141,7 @@ class Database:
             
             user['equipped_pets'].append(pet)
             self.save()
-            return self.get_user_stats(user_id)
+            return user
         return None
 
     def equip_all_same(self, user_id: str, pet: str) -> Dict[str, Any]:
@@ -224,7 +165,7 @@ class Database:
             for _ in range(to_equip):
                 user['equipped_pets'].append(pet)
             self.save()
-            return self.get_user_stats(user_id)
+            return user
         return None
 
     def delete_pet(self, user_id: str, pet: str) -> Dict[str, Any]:
@@ -244,7 +185,7 @@ class Database:
             user['current_passive_income'] = round(user['passive_income'] * passive_mult)
             
             self.save()
-            return self.get_user_stats(user_id)
+            return user
         return None
 
     def passive_income(self, user_id: str) -> Dict[str, Any]:
@@ -263,7 +204,7 @@ class Database:
             user['current_passive_income'] = income
             
             self.save()
-            return self.get_user_stats(user_id)
+            return user
         return None
 
     def create_user(self, user_id):
@@ -355,7 +296,7 @@ class Database:
             user['current_passive_income'] = round(user['passive_income'] * passive_mult)
             
             self.save()
-            return self.get_user_stats(user_id)
+            return user
         return None
 
     def calculate_multipliers(self, user: Dict) -> tuple:
