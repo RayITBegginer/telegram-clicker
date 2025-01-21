@@ -1,6 +1,7 @@
 import sqlite3
 import json
 import os
+import shutil
 from datetime import datetime
 from config import PETS, BOX_CHANCES, BOX_COST
 import random
@@ -20,35 +21,64 @@ MAX_EQUIPPED_PETS = 2
 
 class Database:
     def __init__(self):
-        """Инициализация базы данных"""
-        # Получаем путь к директории, где находится скрипт
-        self.base_dir = os.path.dirname(os.path.abspath(__file__))
-        self.filename = os.path.join(self.base_dir, 'database.json')
+        # Путь к директории данных (вне Git)
+        self.data_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'data')
+        self.filename = os.path.join(self.data_dir, 'database.json')
+        
+        # Создаем директорию для данных, если её нет
+        if not os.path.exists(self.data_dir):
+            os.makedirs(self.data_dir)
+            print(f"Created data directory at {self.data_dir}")
+        
         self.users = {}
         self.load()
         print(f"Database initialized at {self.filename}")
 
     def load(self):
-        """Загрузка данных из файла с обработкой ошибок"""
+        """Загрузка данных с проверкой целостности"""
         try:
             if os.path.exists(self.filename):
                 with open(self.filename, 'r', encoding='utf-8') as f:
-                    self.users = json.load(f)
-                print("Database loaded successfully")
+                    data = json.load(f)
+                    if isinstance(data, dict):
+                        self.users = data
+                        print(f"Loaded data for {len(self.users)} users")
+                    else:
+                        print("Warning: Invalid data format, creating backup")
+                        self._create_backup()
+                        self.users = {}
+            else:
+                print("No existing database found, creating new")
+                self.users = {}
         except Exception as e:
             print(f"Error loading database: {e}")
+            self._create_backup()
             self.users = {}
+        finally:
+            self.save()
 
     def save(self):
-        """Безопасное сохранение с использованием временного файла"""
+        """Безопасное сохранение данных"""
         try:
-            with open(self.filename, 'w', encoding='utf-8') as f:
+            # Создаем временный файл
+            temp_file = f"{self.filename}.tmp"
+            with open(temp_file, 'w', encoding='utf-8') as f:
                 json.dump(self.users, f, ensure_ascii=False, indent=2)
-            print("Database saved successfully")
+            
+            # Безопасно заменяем основной файл
+            shutil.move(temp_file, self.filename)
+            print(f"Data saved successfully ({len(self.users)} users)")
             return True
         except Exception as e:
             print(f"Error saving database: {e}")
             return False
+
+    def _create_backup(self):
+        """Создание резервной копии при проблемах"""
+        if os.path.exists(self.filename):
+            backup_file = f"{self.filename}.backup"
+            shutil.copy2(self.filename, backup_file)
+            print(f"Created backup at {backup_file}")
 
     def get_user_stats(self, user_id: str) -> Dict[str, Any]:
         """Получение статистики пользователя с актуальными множителями"""
